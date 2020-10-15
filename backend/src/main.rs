@@ -17,16 +17,15 @@ mod database;
 type DbPool = r2d2::Pool<SqliteConnectionManager>;
 
 
-fn fetch_coub(coub_url: &str) -> Result<Video, Error> {
-    let tmp_dir = std::env::temp_dir();
-    let name = coub_url.split('/').last().unwrap();
+fn fetch_coub(coub_name: &str, output_path: &str) -> Result<Video, Error> {
+    let dir = "./scripts";
 
-    Command::new("/home/erebe/multimedia/coub/coub.sh")
-        .args(&[coub_url])
-        .current_dir(&tmp_dir)
+    Command::new("./coub.sh")
+        .args(&[coub_name, format!("../{}", output_path).as_str()])
+        .current_dir(dir)
         .output()?;
 
-    let video_file = File::open(format!("{}/{}.js", tmp_dir.display(), name))?;
+    let video_file = File::open(format!("{}/{}/{}.js", output_path, coub_name, coub_name))?;
     let video: Video = serde_json::from_reader(video_file)?;
     Ok(video)
 }
@@ -45,8 +44,7 @@ async fn get_videos(db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
 #[put("/api/video/{name}")]
 async fn insert_video(path: web::Path<String>, db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
     let res = web::block(move || {
-        let video_url = format!("https://coub.com/view/{}", path.0);
-        let video = fetch_coub(&video_url)
+        let video = fetch_coub(&path.0, "./videos")
             .map_err(|err| BlockingError::Error(err.to_string()))?;
         database::insert_video(db.get().unwrap().borrow(), &video)
             .map_err(|err| BlockingError::Error(err.to_string()))
@@ -76,10 +74,12 @@ async fn main() -> std::io::Result<()> {
 
     // API/Webservice setup
     let port = std::env::var("PORT").unwrap_or("8080".to_string());
+    let scripts_dir_path = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
     let videos_dir_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
     let webapp_dir_path = std::env::var("WEBAPP_PATH").unwrap_or("./dist/".to_string());
     info!("videos_dir_path: {}", videos_dir_path);
     info!("webapp_dir_path: {}", webapp_dir_path);
+    info!("scripts_dir_path: {}", scripts_dir_path);
 
     HttpServer::new(move || App::new()
         .wrap(middleware::Logger::default())

@@ -4,6 +4,7 @@ set -e
 mkdir "${1}"
 video_path="$1/$1"
 video_url="https://coub.com/view/$1"
+output="${2}"
 
 loops=50
 
@@ -26,13 +27,18 @@ echo '' > "${video_path}.txt"
 python3 remove_watermark.py "${video_path}.mp4"
 for i in `seq 1 "$loops"`; do echo "file '${1}.mp4.avi'" >> ${video_path}.txt; done
 ffmpeg -y  -hide_banner -t 30 -f concat -i ${video_path}.txt -i ${video_path}.mp3 -c copy -shortest -movflags faststart -vcodec libx264 -c:a aac -b:a 128k "$video_path".mp4
- 
+ffmpegthumbnailer -i "${video_path}.mp4" -o "${video_path}.thumbnail.png" -s 500
+
 tags=$(curl -s ${video_url} | grep -A1 coubPageCoubJson | tail -n 1 | jq .tags[].value | paste -sd ',')
 
-cat <<EOF > ${1}.js
+cat <<EOF > ${video_path}.js
 {
   "name": "${1}",
-  "url": "${video_url}",
+  "url": "/videos/${video_path}.mp4",
   "tags": [${tags}]
 }
 EOF
+
+cleanup
+rm -rf "${2}/${1}"
+mv "${1}" "${2}"
