@@ -6,7 +6,7 @@ import "bootstrap";
 import "popper.js";
 import axios from "axios";
 
-import "./debug/dataMock";
+//import "./debug/dataMock";
 
 axios
   .get("/api/videos")
