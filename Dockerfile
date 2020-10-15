@@ -1,13 +1,15 @@
-FROM rust:1.47 AS builder
+# Rust backend
+FROM rust:1.47 AS builder_backend
 
 COPY backend backend
-COPY frontend frontend
-
-# Rust backend
 WORKDIR /backend
 RUN cargo build --release
 
-# Frontend
+
+# VueJS Frontend
+FROM rust:1.47 AS builder_frontend
+
+COPY frontend frontend
 WORKDIR /frontend
 RUN apt-get update && \
 	curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
@@ -16,6 +18,7 @@ RUN apt-get update && \
 	npm run build
 
 
+# Runner
 FROM debian:buster-slim
 
 RUN useradd -ms /bin/bash app && \
@@ -25,8 +28,8 @@ RUN useradd -ms /bin/bash app && \
 	rm -rf /var/lib/apt/lists
 WORKDIR /home/app
 
-COPY --from=builder backend/target/release/backend webserver
-COPY --from=builder frontend/dist dist
+COPY --from=builder_backend backend/target/release/backend webserver
+COPY --from=builder_frontend frontend/dist dist
 COPY scripts scripts
 
 ENV DATABASE_PATH=db/db.sqlite
