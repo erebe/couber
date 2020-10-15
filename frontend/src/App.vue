@@ -94,7 +94,7 @@ export default defineComponent({
     }
   },
   setup() {
-    const thumbnailsData = (window as any).dataMock as Thumbnail[];
+    const thumbnailsData = _.reverse((window as any).dataMock as Thumbnail[]);
     const tags = _.uniq(
       _.flatMap(thumbnailsData, (thumb: Thumbnail) => thumb.tags)
         .map(decodeURI)
