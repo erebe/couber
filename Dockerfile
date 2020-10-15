@@ -2,7 +2,6 @@
 FROM rust:1.47 AS builder_backend
 
 COPY docker/dummy.rs backend/dummy.rs
-COPY backend/Cargo.lock backend/Cargo.lock
 COPY backend/Cargo.toml backend/Cargo.toml
 
 WORKDIR /backend
