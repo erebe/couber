@@ -1,16 +1,16 @@
 #[macro_use] extern crate log;
 
 use std::borrow::Borrow;
-use std::error;
 use std::fs::File;
 use std::process::Command;
 use actix_files as fs;
 
-use actix_web::{App, Error, get, HttpRequest, HttpResponse, HttpServer, middleware, put, Responder, web};
+use actix_web::{App, Error, get, HttpResponse, HttpServer, middleware, put, web};
 use actix_web::rt::blocking::BlockingError;
 use r2d2_sqlite::SqliteConnectionManager;
 
 use crate::database::{create_database, Video};
+use actix_files::NamedFile;
 
 mod database;
 
@@ -37,7 +37,7 @@ async fn get_videos(db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
     })
         .await
         .map(|video| HttpResponse::Ok().json(video))
-        .map_err(|_| HttpResponse::InternalServerError())?;
+        .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
     Ok(res)
 }
 
@@ -57,6 +57,20 @@ async fn insert_video(path: web::Path<String>, db: web::Data<DbPool>) -> Result<
     Ok(res)
 }
 
+#[put("/api/video/tags/{name}")]
+async fn add_video_tags(path: web::Path<String>, tags: web::Json<Vec<String>>, db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
+    let res = web::block(move || {
+        database::add_tag(db.get().unwrap().borrow(), &path.0, &tags.0)
+            .map_err(|err| BlockingError::Error(err.to_string()))
+    })
+        .await
+        .map(|_| HttpResponse::Ok().body(""))
+        .map_err(|err| {
+            HttpResponse::InternalServerError().body(err.to_string())
+        })?;
+    Ok(res)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Logging
@@ -70,7 +84,7 @@ async fn main() -> std::io::Result<()> {
     let manager = SqliteConnectionManager::file(connspec);
     let pool: DbPool = r2d2::Pool::new(manager)
         .expect("Failed to create pool to sqlite database.");
-    create_database(pool.get().unwrap()).expect("cannot create database schema");
+    create_database(pool.get().unwrap().borrow()).expect("cannot create database schema");
 
     // API/Webservice setup
     let port = std::env::var("PORT").unwrap_or("8080".to_string());
@@ -86,6 +100,7 @@ async fn main() -> std::io::Result<()> {
         .data(pool.clone())
         .data(web::JsonConfig::default().limit(4096))
         .service(get_videos)
+        .service(add_video_tags)
         .service(insert_video)
         .service(fs::Files::new("/videos", &videos_dir_path).show_files_listing())
         .service(fs::Files::new("/", &webapp_dir_path))

@@ -35,7 +35,10 @@ cat <<EOF > ${video_path}.js
 {
   "name": "${1}",
   "url": "/videos/${video_path}.mp4",
-  "tags": [${tags}]
+  "tags": [${tags}],
+  "original": "/videos/${video_path}.ori.mp4",
+  "thumbnail": "/videos/${video_path}.thumbnail.png",
+  "creation_timestamp": $(date '+%s')
 }
 EOF
 
