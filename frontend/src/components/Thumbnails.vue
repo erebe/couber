@@ -164,7 +164,12 @@ export default defineComponent({
           JSON.stringify(tagsToAdd),
           { headers: { "content-type": "application/json" } }
         )
-        .then(success => console.log(success))
+        .then(() => {
+
+          ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal({
+            show: false
+          });
+        })
         .catch(err => console.error(err));
     }
   },
