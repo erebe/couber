@@ -166,9 +166,7 @@ export default defineComponent({
         )
         .then(() => {
 
-          ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal({
-            show: false
-          });
+          ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal("hide");
         })
         .catch(err => console.error(err));
     }
