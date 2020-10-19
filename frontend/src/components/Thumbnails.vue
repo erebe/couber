@@ -34,27 +34,27 @@ export interface Thumbnail {
   original: string;
 }
 
-const loadMoreVideos = _.throttle(
-  function(container: HTMLDivElement, loadNbMore: number) {
-    const videosContainers = _.values(
-      container.getElementsByClassName("thumbnail")
-    ) as HTMLDivElement[];
-    const videosToMakeVisible = _.take(
-      _.dropWhile(
-        videosContainers,
-        (video: HTMLDivElement) => video.style.display == "block"
-      ),
-      loadNbMore
-    );
+const loadMoreVideos = function(container: HTMLDivElement, loadNbMore: number) {
+  const videosContainers = _.values(
+    container.getElementsByClassName("thumbnail")
+  ) as HTMLDivElement[];
+  const videosToMakeVisible = _.take(
+    _.dropWhile(
+      videosContainers,
+      (video: HTMLDivElement) => video.style.display == "block"
+    ),
+    loadNbMore
+  );
 
-    _.forEach(
-      videosToMakeVisible,
-      videosContainer => (videosContainer.style.display = "block")
-    );
-  },
-  50,
-  { trailing: false, leading: true }
-);
+  _.forEach(
+    videosToMakeVisible,
+    videosContainer => (videosContainer.style.display = "block")
+  );
+};
+const loadMoreVideosThrottled = _.throttle(loadMoreVideos, 100, {
+  trailing: true,
+  leading: false
+});
 
 const respondToVisibility = function(element: HTMLElement, callback: any) {
   const options = {
@@ -96,7 +96,7 @@ export default defineComponent({
         (entry: IntersectionObserverEntry, visible: boolean) => {
           if (visible) {
             renderVisible(entry.target as HTMLVideoElement);
-            loadMoreVideos(videosContainer, 10);
+            loadMoreVideosThrottled(videosContainer, 10);
           }
         }
       );
