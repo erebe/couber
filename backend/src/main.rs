@@ -10,7 +10,6 @@ use actix_web::rt::blocking::BlockingError;
 use r2d2_sqlite::SqliteConnectionManager;
 
 use crate::database::{create_database, Video};
-use actix_files::NamedFile;
 
 mod database;
 

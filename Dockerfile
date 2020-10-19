@@ -12,7 +12,7 @@ RUN sed -i 's#src/main.rs#dummy.rs#' Cargo.toml && \
 COPY backend .
 
 RUN sed -i 's#dummy.rs#src/main.rs#' Cargo.toml && \ 
-    cargo build --release
+   cargo build --release 
 
 
 # VueJS Frontend
@@ -29,13 +29,13 @@ RUN npm install && \
     npm run build
 
 # Runner
-FROM debian:buster-slim
+FROM debian:bullseye-slim
 
 RUN useradd -ms /bin/bash app && \
 	apt-get update && \
 	apt install -y sqlite3 python3 python3-numpy python3-opencv ffmpeg ffmpegthumbnailer youtube-dl curl jq && \
 	apt-get clean && \
-	rm -rf /var/lib/apt/lists
+	rm -rf /var/lib/apt/lists 
 WORKDIR /home/app
 
 COPY --from=builder_backend backend/target/release/backend webserver
