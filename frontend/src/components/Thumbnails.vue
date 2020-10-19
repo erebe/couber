@@ -14,6 +14,7 @@
         preload="none"
         data-toggle="tooltip"
         v-bind:title="decodeURI(thumbnail.tags)"
+        v-bind:poster="thumbnail.thumbnail"
       >
         <source v-bind:src="thumbnail.url" type="video/mp4" />
       </video>
@@ -23,12 +24,37 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
+import * as _ from "lodash";
 
 export interface Thumbnail {
   name: string;
   url: string;
   tags: string[];
+  thumbnail: string;
+  original: string;
 }
+
+const loadMoreVideos = _.throttle(
+  function(container: HTMLDivElement, loadNbMore: number) {
+    const videosContainers = _.values(
+      container.getElementsByClassName("thumbnail")
+    ) as HTMLDivElement[];
+    const videosToMakeVisible = _.take(
+      _.dropWhile(
+        videosContainers,
+        (video: HTMLDivElement) => video.style.display == "block"
+      ),
+      loadNbMore
+    );
+
+    _.forEach(
+      videosToMakeVisible,
+      videosContainer => (videosContainer.style.display = "block")
+    );
+  },
+  50,
+  { trailing: false, leading: true }
+);
 
 const respondToVisibility = function(element: HTMLElement, callback: any) {
   const options = {
@@ -55,22 +81,27 @@ export default defineComponent({
     this.$forceUpdate();
   },
   updated() {
+    const renderVisible = (videoEl: HTMLVideoElement) => {
+      if (videoEl.style.visibility != "visible") {
+        videoEl.style.visibility = "visible";
+        videoEl.parentElement!.style.display = "block";
+      }
+    };
+
     //TODO: use refs when https://github.com/vuejs/vue-next/issues/1166 is fixes
-    const videos = (this.$refs.videos as HTMLDivElement).getElementsByTagName(
-      "video"
-    );
-    for (let i = 0; i < videos.length; i++) {
+    const videosContainer = this.$refs.videos as HTMLDivElement;
+    _.values(videosContainer.getElementsByTagName("video")).forEach(video => {
       respondToVisibility(
-        videos.item(i)!,
+        video,
         (entry: IntersectionObserverEntry, visible: boolean) => {
-          const el = entry.target as HTMLVideoElement;
-          if (visible && el.preload != "metadata") {
-            el.preload = "metadata";
-            el.style.visibility = "visible";
+          if (visible) {
+            renderVisible(entry.target as HTMLVideoElement);
+            loadMoreVideos(videosContainer, 10);
           }
         }
       );
-    }
+    });
+    loadMoreVideos(videosContainer, 10);
   }
 });
 </script>
@@ -83,6 +114,7 @@ export default defineComponent({
   margin: 10px;
   width: 400px;
   height: 300px;
+  display: none;
 }
 
 video {

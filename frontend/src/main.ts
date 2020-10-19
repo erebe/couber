@@ -11,7 +11,6 @@ import axios from "axios";
 axios
   .get("/api/videos")
   .then(response => {
-    console.log(response);
     (window as any).dataMock = response.data;
   })
   .catch(error => {

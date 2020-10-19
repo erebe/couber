@@ -6,6 +6,7 @@ COPY backend/Cargo.toml backend/Cargo.toml
 
 WORKDIR /backend
 RUN sed -i 's#src/main.rs#dummy.rs#' Cargo.toml && \
+    cargo fetch && \
     cargo build --release
 
 COPY backend .
