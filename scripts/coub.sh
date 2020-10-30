@@ -47,6 +47,6 @@ cat <<EOF > ${video_path}.js
 }
 EOF
 
-cleanup
+cleanup 0 ''
 rm -rf "${2}/${video_name}"
 mv "${video_name}" "${2}"
