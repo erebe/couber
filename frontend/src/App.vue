@@ -27,11 +27,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="exampleModalLabel">Add Coub video</h5>
-            <a
-              class="close"
-              data-dismiss="modal"
-              aria-label="Close"
-            >
+            <a class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </a>
           </div>
@@ -117,7 +113,8 @@ export default defineComponent({
   methods: {
     addCoub: function(e: UIEvent) {
       e.preventDefault();
-      const coubName = (this.$refs.coubName as HTMLInputElement).value.trim();
+
+      const coubName = _.last((this.$refs.coubName as HTMLInputElement).value.trim().split('/'));
       (this.$refs.coubName as HTMLInputElement).value = "Fetching...";
       axios
         .put("/api/video/" + coubName)

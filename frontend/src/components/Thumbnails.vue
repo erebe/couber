@@ -165,7 +165,7 @@ export default defineComponent({
           { headers: { "content-type": "application/json" } }
         )
         .then(() => {
-          this.selectedVideo.tags = tags; 
+          this.selectedVideo.tags = tags;
           ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal("hide");
         })
         .catch(err => console.error(err));
