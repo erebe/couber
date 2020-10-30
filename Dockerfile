@@ -33,7 +33,7 @@ FROM debian:bullseye-slim
 
 RUN useradd -ms /bin/bash app && \
 	apt-get update && \
-	apt install -y sqlite3 python3 python3-numpy python3-opencv ffmpeg ffmpegthumbnailer youtube-dl curl jq && \
+	apt install -y --no-install-recommends sqlite3 python3 python3-numpy python3-opencv ffmpeg ffmpegthumbnailer youtube-dl curl jq && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists 
 WORKDIR /home/app
