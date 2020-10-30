@@ -27,17 +27,16 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="exampleModalLabel">Add Coub video</h5>
-            <button
-              type="button"
+            <a
               class="close"
               data-dismiss="modal"
               aria-label="Close"
             >
               <span aria-hidden="true">&times;</span>
-            </button>
+            </a>
           </div>
           <div class="modal-body">
-            <form>
+            <form v-on:submit="addCoub">
               <div class="form-group">
                 <label for="coubName">Coub name</label>
                 <input
@@ -116,7 +115,8 @@ export default defineComponent({
     $(".selectpicker").selectpicker();
   },
   methods: {
-    addCoub: function() {
+    addCoub: function(e: UIEvent) {
+      e.preventDefault();
       const coubName = (this.$refs.coubName as HTMLInputElement).value.trim();
       (this.$refs.coubName as HTMLInputElement).value = "Fetching...";
       axios
