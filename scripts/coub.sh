@@ -1,24 +1,23 @@
 #!/usr/bin/env bash
 
 set -e
-mkdir "${1}"
-video_path="$1/$1"
-video_url="https://coub.com/view/$1"
+video_name=${1}
+mkdir "${video_name}"
+video_path="${video_name}/${video_name}"
+video_url="https://coub.com/view/${video_name}"
 output="${2}"
 
 loops=50
 
 function cleanup() {
   rm -f ${video_path}.{mp4.avi,txt,mp3} 
+  if [ "$1" != "0" ]; then
+    echo "Error $1 occurred on $2"
+    rm -rf "${video_name}"
+  fi
 }
 
-function catch() {
-  echo "Error $1 occurred on $2"
-  rm -rf "${1}"
-}
-
-trap cleanup EXIT INT TERM
-trap "on_error $? $LINENO" ERR
+trap "cleanup $? $LINENO" EXIT INT TERM
 
 
 youtube-dl -o ${video_path}.mp4 ${video_url}
@@ -39,7 +38,7 @@ tags=$(curl -s ${video_url} | grep -A1 coubPageCoubJson | tail -n 1 | jq .tags[]
 
 cat <<EOF > ${video_path}.js
 {
-  "name": "${1}",
+  "name": "${video_name}",
   "url": "/videos/${video_path}.mp4",
   "tags": [${tags}],
   "original": "/videos/${video_path}.ori.mp4",
@@ -49,5 +48,5 @@ cat <<EOF > ${video_path}.js
 EOF
 
 cleanup
-rm -rf "${2}/${1}"
-mv "${1}" "${2}"
+rm -rf "${2}/${video_name}"
+mv "${video_name}" "${2}"
