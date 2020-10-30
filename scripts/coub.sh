@@ -12,7 +12,13 @@ function cleanup() {
   rm -f ${video_path}.{mp4.avi,txt,mp3} 
 }
 
+function catch() {
+  echo "Error $1 occurred on $2"
+  rm -rf "${1}"
+}
+
 trap cleanup EXIT INT TERM
+trap "on_error $? $LINENO" ERR
 
 
 youtube-dl -o ${video_path}.mp4 ${video_url}
