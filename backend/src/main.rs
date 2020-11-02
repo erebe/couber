@@ -83,7 +83,7 @@ async fn main() -> std::io::Result<()> {
     let manager = SqliteConnectionManager::file(connspec);
     let pool: DbPool = r2d2::Pool::new(manager)
         .expect("Failed to create pool to sqlite database.");
-    create_database(pool.get().unwrap().borrow()).expect("cannot create database schema");
+    create_database(pool.get().unwrap().borrow()).expect("Cannot create database schema");
 
     // API/Webservice setup
     let port = std::env::var("PORT").unwrap_or("8080".to_string());

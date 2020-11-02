@@ -1,0 +1,13 @@
+apiVersion: skaffold/v2beta8
+kind: Config
+metadata:
+  name: couber
+build:
+  local:
+    useBuildkit: true
+  artifacts:
+  - image: erebe/couber
+deploy:
+  kubectl:
+    manifests:
+    - couber.yml
