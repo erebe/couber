@@ -38,7 +38,7 @@ RUN useradd -ms /bin/bash app && \
 	rm -rf /var/lib/apt/lists 
 WORKDIR /home/app
 
-COPY --from=builder_backend backend/target/release/backend webserver
+COPY --from=builder_backend backend/target/release/backend couber
 COPY --from=builder_frontend frontend/dist dist
 COPY scripts scripts
 
@@ -54,4 +54,4 @@ VOLUME /home/app/videos
 VOLUME /home/app/db
 
 CMD chown -R app:app . && \
-    runuser -u app ./webserver
+    runuser -u app ./couber
