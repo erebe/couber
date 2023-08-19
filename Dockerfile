@@ -1,5 +1,5 @@
 # Rust backend
-FROM rust:1.47 AS builder_backend
+FROM rust:1.71 AS builder_backend
 
 LABEL org.opencontainers.image.source https://github.com/erebe/couber
 
