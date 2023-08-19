@@ -104,7 +104,7 @@ async fn main() -> std::io::Result<()> {
         .service(fs::Files::new("/videos", &videos_dir_path).show_files_listing())
         .service(fs::Files::new("/", &webapp_dir_path))
     )
-        .bind(format!("0.0.0.0:{}", &port))?
+        .bind(format!("[::]:{}", &port))?
         .run()
         .await
 }
