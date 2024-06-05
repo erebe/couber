@@ -20,8 +20,8 @@ function cleanup() {
 trap "cleanup $? $LINENO" EXIT INT TERM
 
 
-youtube-dl -o ${video_path}.mp4 ${video_url}
-youtube-dl -f html5-audio-high -o ${video_path}.mp3 ${video_url}
+yt-dlp -o ${video_path}.mp4 ${video_url}
+yt-dlp -f html5-audio-high -o ${video_path}.mp3 ${video_url}
 
 printf '\x00\x00' | dd of=${video_path}.mp4 bs=1 count=2 conv=notrunc
 for i in `seq 1 "$loops"`; do echo "file '${1}.mp4'" >> ${video_path}.txt; done

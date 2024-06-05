@@ -17,12 +17,13 @@ type DbPool = r2d2::Pool<SqliteConnectionManager>;
 
 
 fn fetch_coub(coub_name: &str, output_path: &str) -> Result<Video, Error> {
-    let dir = "./scripts";
+    let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
 
-    Command::new("./coub.sh")
-        .args(&[coub_name, format!("../{}", output_path).as_str()])
-        .current_dir(dir)
-        .output()?;
+    let mut cmd = Command::new("./coub.sh");
+    cmd.args(&[coub_name, output_path])
+        .current_dir(scripts_dir);
+    info!("Coub fetched: {:?}", cmd);
+    cmd.output()?;
 
     let video_file = File::open(format!("{}/{}/{}.js", output_path, coub_name, coub_name))?;
     let video: Video = serde_json::from_reader(video_file)?;
@@ -43,7 +44,7 @@ async fn get_videos(db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
 #[put("/api/video/{name}")]
 async fn insert_video(path: web::Path<String>, db: web::Data<DbPool>) -> Result<HttpResponse, Error> {
     let res = web::block(move || {
-        let video = fetch_coub(&path.0, "./videos")
+        let video = fetch_coub(&path.0, std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()).as_str())
             .map_err(|err| BlockingError::Error(err.to_string()))?;
         database::insert_video(db.get().unwrap().borrow(), &video)
             .map_err(|err| BlockingError::Error(err.to_string()))
