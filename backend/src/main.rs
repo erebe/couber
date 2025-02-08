@@ -1,31 +1,28 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
+use axum::routing::{get, put};
+use axum::{Json, Router};
 use std::borrow::Borrow;
 use std::fs::File;
 use std::process::Command;
-use axum::extract::{Path, State};
-use axum::{Json, Router};
-use axum::http::StatusCode;
-use axum::routing::{get, put};
 
+use crate::database::{create_database, Video};
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::task::spawn_blocking;
-use crate::database::{create_database, Video};
-use tower_http::{
-    services::ServeDir,
-};
+use tower_http::services::ServeDir;
 
 mod database;
 
 type DbPool = r2d2::Pool<SqliteConnectionManager>;
 
-
 fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
     let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
 
     let mut cmd = Command::new("./coub.sh");
-    cmd.args(&[coub_name, output_path])
-        .current_dir(scripts_dir);
+    cmd.args([coub_name, output_path]).current_dir(scripts_dir);
     info!("Coub fetched: {:?}", cmd);
     cmd.output()?;
 
@@ -36,16 +33,23 @@ fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
 
 async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (StatusCode, String)> {
     database::list_videos(db.get().unwrap().borrow())
-        .map(|video| Json(video))
+        .map(Json)
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
 }
 
-async fn insert_video(State(db): State<DbPool>, Path(name): Path<String>,) -> Result<Json<Video>, (StatusCode, String)> {
-    let video  = spawn_blocking(move || {
-        fetch_coub(&name, &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()))
-    }).await
-        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
-        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+async fn insert_video(
+    State(db): State<DbPool>,
+    Path(name): Path<String>,
+) -> Result<Json<Video>, (StatusCode, String)> {
+    let video = spawn_blocking(move || {
+        fetch_coub(
+            &name,
+            &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
+        )
+    })
+    .await
+    .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
+    .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
     database::insert_video(db.get().unwrap().borrow(), &video)
         .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
@@ -53,11 +57,13 @@ async fn insert_video(State(db): State<DbPool>, Path(name): Path<String>,) -> Re
     Ok(Json(video))
 }
 
-
-async fn add_video_tags(State(db): State<DbPool>, Path(name): Path<String>, Json(tags): Json<Vec<String>>) -> Result<(), (StatusCode, String)> {
-    spawn_blocking(move || {
-        database::add_tag(db.get().unwrap().borrow(), &name, &tags)
-    }).await
+async fn add_video_tags(
+    State(db): State<DbPool>,
+    Path(name): Path<String>,
+    Json(tags): Json<Vec<String>>,
+) -> Result<(), (StatusCode, String)> {
+    spawn_blocking(move || database::add_tag(db.get().unwrap().borrow(), &name, &tags))
+        .await
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
@@ -75,8 +81,7 @@ async fn main() -> eyre::Result<()> {
     // Database and connection pool setup
     let connspec = std::env::var("DATABASE_PATH").unwrap_or("db.sqlite".to_string());
     let manager = SqliteConnectionManager::file(connspec);
-    let pool: DbPool = r2d2::Pool::new(manager)
-        .expect("Failed to create pool to sqlite database.");
+    let pool: DbPool = r2d2::Pool::new(manager).expect("Failed to create pool to sqlite database.");
     create_database(pool.get()?.borrow()).expect("Cannot create database schema");
 
     // API/Webservice setup
@@ -112,8 +117,7 @@ async fn main() -> eyre::Result<()> {
         .with_state(pool);
 
     // run it
-    let listener = tokio::net::TcpListener::bind(format!("[::]:{}", port))
-        .await?;
+    let listener = tokio::net::TcpListener::bind(format!("[::]:{}", port)).await?;
 
     info!("listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
