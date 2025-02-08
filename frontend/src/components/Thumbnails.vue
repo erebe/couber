@@ -160,7 +160,7 @@ export default defineComponent({
       const tagsToAdd = _.difference(tags, _.values(this.selectedVideo.tags));
       axios
         .put(
-          "/api/video/tags/" + this.selectedVideo.name,
+          "/api/video/" + this.selectedVideo.name + "/tags",
           JSON.stringify(tagsToAdd),
           { headers: { "content-type": "application/json" } }
         )

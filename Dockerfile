@@ -1,7 +1,7 @@
 # Rust backend
 FROM rust:1.78 AS builder_backend
 
-LABEL org.opencontainers.image.source https://github.com/erebe/couber
+LABEL org.opencontainers.image.source=https://github.com/erebe/couber
 
 COPY docker/dummy.rs backend/dummy.rs
 COPY backend/Cargo.toml backend/Cargo.toml
