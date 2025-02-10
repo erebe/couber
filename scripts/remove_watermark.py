@@ -12,7 +12,7 @@ if not video_in.isOpened():
 video_shape = (int(video_in.get(cv.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv.CAP_PROP_FRAME_HEIGHT)))
 video_fps = video_in.get(cv.CAP_PROP_FPS)
 video_out = cv.VideoWriter(sys.argv[1] + ".avi", cv.VideoWriter_fourcc(*'FMP4'), video_fps, video_shape)
-threshold = int(sys.argv[2]) if len(sys.argv) > 2 else 180
+threshold = int(sys.argv[2]) if len(sys.argv) > 2 else 220
 
 while video_in.isOpened():
 
@@ -24,8 +24,8 @@ while video_in.isOpened():
     # Watermark is in the bottom corner right so limit ourselves to this area
     rows, cols, channels = img.shape
     print("Decoding frame...")
-    rowP = 150
-    colP = 300
+    rowP = 110
+    colP = 400
     watermark_area = img[rows - rowP:-1, cols - colP:-1]
 
     # Convert to gray-scale and apply a threshold to create a mask of the watermark on this frame
