@@ -31,6 +31,10 @@ while video_in.isOpened():
     # Convert to gray-scale and apply a threshold to create a mask of the watermark on this frame
     watermark_area = cv.cvtColor(watermark_area, cv.COLOR_BGR2GRAY)
     ret, watermark_mask = cv.threshold(watermark_area, threshold, 255, cv.THRESH_TOZERO)
+    watermark_mask[0:60, 0:140] = np.zeros(shape=(60, 140), dtype=np.uint8)
+    watermark_mask[87:110, 0:400] = np.zeros(shape=(22, 399), dtype=np.uint8)
+    watermark_mask[0:110, -30:400] = np.zeros(shape=(109, 30), dtype=np.uint8)
+
 
     # Dilate the mask in order to not let any artifact around
     kernel = np.ones((3, 3), np.uint8)
