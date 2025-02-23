@@ -10,7 +10,7 @@ output="${2}"
 loops=50
 
 function cleanup() {
-  rm -f ${video_path}.{mp4.avi,txt,mp3} 
+  rm -f ${video_path}.{mp4.avi,txt} 
   if [ "$1" != "0" ]; then
     echo "Error $1 occurred on $2"
     rm -rf "${video_name}"
