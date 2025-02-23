@@ -55,11 +55,29 @@ pub fn add_tag(
     video_name: &str,
     tags: &Vec<String>,
 ) -> rusqlite::Result<()> {
-    tags.iter().try_for_each(|tag| {
-        cnx.execute("UPDATE videos SET tags = (select json_insert(videos.tags, '$[#]', ?) from videos where name = ?) where name = ?",
-                    &[tag, video_name, video_name])?;
-        Ok(())
-    })
+    //tags.iter().try_for_each(|tag| {
+    cnx.execute(
+        r#"
+        UPDATE videos
+        SET tags = (
+            SELECT JSON_GROUP_ARRAY(DISTINCT value)
+            FROM (
+                SELECT value
+                FROM json_each(videos.tags)
+                where name = ?
+                UNION
+                SELECT value
+                FROM json_each(?)
+            )
+        ) where name = ?"#,
+        &[
+            video_name,
+            &serde_json::to_string(tags).unwrap_or_default(),
+            video_name,
+        ],
+    )?;
+    Ok(())
+    //})
 }
 
 #[cfg(test)]
@@ -123,7 +141,7 @@ mod tests {
         add_tag(
             pool.get().unwrap().borrow(),
             video.name.as_str(),
-            vec![String::from("tags")].borrow(),
+            vec![String::from("tags"), String::from("tags")].borrow(),
         )
         .expect("cannot add tag");
         let vids = list_videos(pool.get().unwrap().borrow()).expect("cannot list videos");
