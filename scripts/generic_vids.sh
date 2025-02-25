@@ -7,15 +7,16 @@ mkdir "${video_name}"
 
 video_path=${video_name}/${video_name}
 
-yt-dlp -o ${video_path}.mp4 ${video_url}
-ffmpegthumbnailer -i "${video_path}.mp4" -o "${video_path}.thumbnail.png" -s 500
+yt-dlp -o ${video_path} ${video_url}
+video_full=$(find ${video_name}/ -type f -name "${video_name}.*")
+ffmpegthumbnailer -i "${video_full}" -o "${video_path}.thumbnail.png" -s 500
 
 cat <<EOF > ${video_path}.js
 {
   "name": "${video_name}",
-  "url": "/videos/${video_path}.mp4",
+  "url": "/videos/${video_full}",
   "tags": [],
-  "original": "/videos/${video_path}.mp4",
+  "original": "${video_url}",
   "thumbnail": "/videos/${video_path}.thumbnail.png",
   "creation_timestamp": $(date '+%s')
 }
