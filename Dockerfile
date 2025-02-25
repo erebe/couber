@@ -35,7 +35,8 @@ FROM debian:bookworm-slim
 
 RUN useradd -ms /bin/bash app && \
 	apt-get update && \
-	apt install -y --no-install-recommends ca-certificates sqlite3 python3 python3-numpy python3-opencv ffmpeg ffmpegthumbnailer youtube-dl curl jq && \
+	apt install -y --no-install-recommends ca-certificates sqlite3 python3 python3-numpy python3-opencv ffmpeg ffmpegthumbnailer curl jq && \
+	curl -sL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/download/2025.02.19/yt-dlp_linux && chmod +x /usr/local/bin/yt-dlp && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists 
 WORKDIR /home/app

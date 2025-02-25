@@ -55,7 +55,6 @@ pub fn add_tag(
     video_name: &str,
     tags: &Vec<String>,
 ) -> rusqlite::Result<()> {
-    //tags.iter().try_for_each(|tag| {
     cnx.execute(
         r#"
         UPDATE videos
@@ -77,7 +76,6 @@ pub fn add_tag(
         ],
     )?;
     Ok(())
-    //})
 }
 
 #[cfg(test)]

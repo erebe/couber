@@ -11,6 +11,7 @@ use std::process::Command;
 
 use crate::database::{create_database, Video};
 use r2d2_sqlite::SqliteConnectionManager;
+use sha2::Digest;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
 
@@ -31,6 +32,27 @@ fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
     Ok(video)
 }
 
+fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
+    fn calculate_hash(t: &str) -> String {
+        let hash = sha2::Sha256::digest(&t.as_bytes());
+        let mut hash = format!("{:x}", hash);
+        hash.truncate(10);
+        hash
+    }
+
+    let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
+
+    let video_name = calculate_hash(video_url);
+    let mut cmd = Command::new("./generic_vids.sh");
+    cmd.args([video_url, output_path, &video_name]).current_dir(scripts_dir);
+    info!("Video fetched: {:?}", cmd);
+    cmd.output()?;
+
+    let video_file = File::open(format!("{}/{}/{}.js", output_path, video_name, video_name))?;
+    let video: Video = serde_json::from_reader(video_file)?;
+    Ok(video)
+}
+
 async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (StatusCode, String)> {
     database::list_videos(db.get().unwrap().borrow())
         .map(Json)
@@ -39,13 +61,21 @@ async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (Statu
 
 async fn insert_video(
     State(db): State<DbPool>,
-    Path(name): Path<String>,
+    Path(vid_url): Path<String>,
 ) -> Result<Json<Video>, (StatusCode, String)> {
     let video = spawn_blocking(move || {
-        fetch_coub(
-            &name,
-            &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
-        )
+        if vid_url.starts_with("https://coub.com") {
+            let coub_name = vid_url.split('/').last().unwrap_or_default();
+            fetch_coub(
+                &coub_name,
+                &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
+            )
+        } else {
+            fetch_video(
+                &vid_url,
+                &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
+            )
+        }
     })
     .await
     .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?

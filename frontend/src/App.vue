@@ -26,7 +26,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="exampleModalLabel">Add Coub video</h5>
+            <h5 class="modal-title" id="exampleModalLabel">Add video</h5>
             <a class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </a>
@@ -34,7 +34,7 @@
           <div class="modal-body">
             <form v-on:submit="addCoub">
               <div class="form-group">
-                <label for="coubName">Coub name</label>
+                <label for="coubName">Video url</label>
                 <input
                   type="text"
                   class="form-control"
@@ -53,7 +53,7 @@
               Close
             </button>
             <button type="button" class="btn btn-primary" v-on:click="addCoub">
-              Add Coub
+              Add Video
             </button>
           </div>
         </div>
@@ -114,10 +114,10 @@ export default defineComponent({
     addCoub: function(e: UIEvent) {
       e.preventDefault();
 
-      const coubName = _.last((this.$refs.coubName as HTMLInputElement).value.trim().split('/'));
+      const coubName = (this.$refs.coubName as HTMLInputElement).value.trim();
       (this.$refs.coubName as HTMLInputElement).value = "Fetching...";
       axios
-        .put("/api/video/" + coubName)
+        .put("/api/video/" + encodeURIComponent(coubName))
         .then(() => {
           (this.$refs.coubName as HTMLInputElement).value = "Success";
         })
