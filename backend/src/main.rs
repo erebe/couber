@@ -19,6 +19,11 @@ mod database;
 
 type DbPool = r2d2::Pool<SqliteConnectionManager>;
 
+#[derive(serde::Deserialize)]
+struct InsertVideoPayload {
+    url: String,
+}
+
 fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
     let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
 
@@ -61,8 +66,9 @@ async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (Statu
 
 async fn insert_video(
     State(db): State<DbPool>,
-    Path(vid_url): Path<String>,
+    Json(payload): Json<InsertVideoPayload>,
 ) -> Result<Json<Video>, (StatusCode, String)> {
+    let vid_url = payload.url;
     let video = spawn_blocking(move || {
         if vid_url.starts_with("https://coub.com") {
             let coub_name = vid_url.split('/').last().unwrap_or_default();
@@ -140,7 +146,7 @@ async fn main() -> eyre::Result<()> {
     // build our application with a route
     let app = Router::new()
         .route("/api/videos", get(get_videos))
-        .route("/api/video/{name}", put(insert_video))
+        .route("/api/video", put(insert_video))
         .route("/api/video/{name}/tags", put(add_video_tags))
         .nest_service("/videos", ServeDir::new(videos_dir_path))
         .fallback_service(ServeDir::new(webapp_dir_path))

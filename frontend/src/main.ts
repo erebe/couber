@@ -1,9 +1,8 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 
-import "jquery";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
-import "popper.js";
 import axios from "axios";
 
 //import "./debug/dataMock";

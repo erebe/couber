@@ -9,20 +9,20 @@ name = "backend"
 path = "src/main.rs"
 
 [dependencies]
-log = "0.4.11"
-env_logger = "0.7"
+log = "0.4.29"
+env_logger = "0.11"
 
-axum = { version = "0.8.1", features = ["default"] }
+axum = { version = "0.8.8", features = ["default"] }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 r2d2 = "0.8"
-r2d2_sqlite = "0.14"
-rusqlite = "0.21"
-tokio = { version = "1.43.0", features = ["full"] }
-tower-http = { version = "0.6.2", features = ["fs"] }
-tower = { version = "0.5.2", features = ["util"] }
+r2d2_sqlite = "0.32"
+rusqlite = { version = "0.38", features = ["bundled-full"] }
+tokio = { version = "1.50.0", features = ["full"] }
+tower-http = { version = "0.6.8", features = ["fs"] }
+tower = { version = "0.5.3", features = ["util"] }
 eyre = "0.6.12"
-color-eyre = "0.6.3"
-sha2 = {  version = "0.10.8", features = ["asm"] }
+color-eyre = "0.6.5"
+sha2 = {  version = "0.10.9", features = ["asm"] }

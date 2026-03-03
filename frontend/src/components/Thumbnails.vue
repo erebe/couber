@@ -12,9 +12,9 @@
       <video
         controls
         preload="none"
-        data-toggle="tooltip"
+        data-bs-toggle="tooltip"
         v-bind:data-name="thumbnail.name"
-        v-bind:title="decodeURI(thumbnail.tags)"
+        v-bind:title="decodeURI(thumbnail.tags.toString())"
         v-bind:poster="thumbnail.thumbnail"
         v-on:auxclick="addTags"
       >
@@ -26,7 +26,6 @@
       class="modal fade"
       id="addTagsModal"
       ref="addTagsModal"
-      data-name=""
       tabindex="-1"
     >
       <div class="modal-dialog">
@@ -35,17 +34,15 @@
             <h5 class="modal-title">Add tags</h5>
             <button
               type="button"
-              class="close"
-              data-dismiss="modal"
+              class="btn-close"
+              data-bs-dismiss="modal"
               aria-label="Close"
-            >
-              <span aria-hidden="true">&times;</span>
-            </button>
+            ></button>
           </div>
           <div class="modal-body">
             <form>
-              <div class="form-group">
-                <label for="videoTagsInput">Tags</label>
+              <div class="mb-3">
+                <label for="videoTagsInput" class="form-label">Tags</label>
                 <textarea
                   class="form-control"
                   id="videoTagsInput"
@@ -58,7 +55,7 @@
             <button
               type="button"
               class="btn btn-secondary"
-              data-dismiss="modal"
+              data-bs-dismiss="modal"
             >
               Close
             </button>
@@ -77,10 +74,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, PropType } from "vue";
+import { defineComponent, type PropType } from "vue";
 import * as _ from "lodash";
-import $ from "jquery";
-import axios from "types-axios";
+import { Modal } from "bootstrap";
+import axios from "axios";
 
 export interface Thumbnail {
   name: string;
@@ -117,7 +114,7 @@ const respondToVisibility = function(element: HTMLElement, callback: any) {
     root: null
   };
 
-  const observer = new IntersectionObserver((entries, observer) => {
+  const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       callback(entry, entry.intersectionRatio > 0);
     });
@@ -135,7 +132,7 @@ export default defineComponent({
   },
   data: function() {
     return {
-      selectedVideo: (Object as unknown) as Thumbnail
+      selectedVideo: {} as Thumbnail
     };
   },
   methods: {
@@ -147,9 +144,8 @@ export default defineComponent({
 
       const tagsInput = this.$refs.videoTagsInput as HTMLTextAreaElement;
       tagsInput.value = _.map(video.tags, tag => decodeURI(tag)).toString();
-      ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal({
-        show: true
-      });
+      const modal = new Modal(this.$refs.addTagsModal as HTMLElement);
+      modal.show();
     },
     addTagsSubmit: function(event: MouseEvent) {
       event.preventDefault();
@@ -166,7 +162,8 @@ export default defineComponent({
         )
         .then(() => {
           this.selectedVideo.tags = tags;
-          ($(this.$refs.addTagsModal as HTMLDivElement) as any).modal("hide");
+          const modal = Modal.getInstance(this.$refs.addTagsModal as HTMLElement);
+          modal?.hide();
         })
         .catch(err => console.error(err));
     }
@@ -182,7 +179,6 @@ export default defineComponent({
       }
     };
 
-    //TODO: use refs when https://github.com/vuejs/vue-next/issues/1166 is fixes
     const videosContainer = this.$refs.videos as HTMLDivElement;
     _.values(videosContainer.getElementsByTagName("video")).forEach(video => {
       respondToVisibility(
@@ -203,8 +199,6 @@ export default defineComponent({
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 .thumbnail {
-  /* border-block: solid;
-  border-style: dotted; */
   margin: 10px;
   width: 400px;
   height: 300px;

@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::NO_PARAMS;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -16,7 +15,7 @@ pub struct Video {
 }
 
 pub fn create_database(cnx: &PooledConnection<SqliteConnectionManager>) -> rusqlite::Result<usize> {
-    cnx.execute("CREATE TABLE IF NOT EXISTS videos (name TEXT PRIMARY KEY, url TEXT, tags JSON, original TEXT, thumbnail TEXT, creation_timestamp INTEGER)", NO_PARAMS)
+    cnx.execute("CREATE TABLE IF NOT EXISTS videos (name TEXT PRIMARY KEY, url TEXT, tags JSON, original TEXT, thumbnail TEXT, creation_timestamp INTEGER)", ())
 }
 
 pub fn list_videos(
@@ -25,7 +24,7 @@ pub fn list_videos(
     let mut stmt =
         cnx.prepare("SELECT name, url, tags, original, thumbnail, creation_timestamp FROM videos")?;
     let videos = stmt
-        .query_map(NO_PARAMS, |row| {
+        .query_map((), |row| {
             Ok(Video {
                 name: row.get(0)?,
                 url: row.get(1)?,
