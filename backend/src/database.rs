@@ -50,6 +50,18 @@ pub fn insert_video(
     Ok(())
 }
 
+pub fn set_tags(
+    cnx: &PooledConnection<SqliteConnectionManager>,
+    video_name: &str,
+    tags: &Vec<String>,
+) -> rusqlite::Result<()> {
+    cnx.execute(
+        "UPDATE videos SET tags = ? WHERE name = ?",
+        &[&serde_json::to_string(tags).unwrap_or_default(), video_name],
+    )?;
+    Ok(())
+}
+
 pub fn add_tag(
     cnx: &PooledConnection<SqliteConnectionManager>,
     video_name: &str,
