@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate log;
 
-use axum::extract::{Path, State};
+use axum::extract::{Form, Path, Query, State};
 use axum::http::StatusCode;
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
+use maud::{html, Markup, PreEscaped, DOCTYPE};
+use serde::Deserialize;
 use std::borrow::Borrow;
 use std::fs::File;
 use std::process::Command;
@@ -26,12 +28,10 @@ struct InsertVideoPayload {
 
 fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
     let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
-
     let mut cmd = Command::new("./coub.sh");
     cmd.args([coub_name, output_path]).current_dir(scripts_dir);
     info!("Coub fetched: {:?}", cmd);
     cmd.output()?;
-
     let video_file = File::open(format!("{}/{}/{}.js", output_path, coub_name, coub_name))?;
     let video: Video = serde_json::from_reader(video_file)?;
     Ok(video)
@@ -39,24 +39,395 @@ fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
 
 fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
     fn calculate_hash(t: &str) -> String {
-        let hash = sha2::Sha256::digest(&t.as_bytes());
+        let hash = sha2::Sha256::digest(t.as_bytes());
         let mut hash = format!("{:x}", hash);
         hash.truncate(10);
         hash
     }
-
     let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
-
     let video_name = calculate_hash(video_url);
     let mut cmd = Command::new("./generic_vids.sh");
     cmd.args([video_url, output_path, &video_name]).current_dir(scripts_dir);
     info!("Video fetched: {:?}", cmd);
     cmd.output()?;
-
     let video_file = File::open(format!("{}/{}/{}.js", output_path, video_name, video_name))?;
     let video: Video = serde_json::from_reader(video_file)?;
     Ok(video)
 }
+
+fn decode_tags(tags: &[String]) -> Vec<String> {
+    tags.iter()
+        .map(|t| {
+            urlencoding::decode(t)
+                .map(|s| s.into_owned())
+                .unwrap_or_else(|_| t.clone())
+        })
+        .collect()
+}
+
+const CSS: &str = r#"
+:root {
+    --bg: #0f0f1a;
+    --header-bg: #1a1a2e;
+    --card-bg: #16213e;
+    --accent: #4a90d9;
+    --accent-hover: #357abd;
+    --text: #e8e8f0;
+    --text-muted: #888;
+    --border: #2a2a4a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+header {
+    display: flex; align-items: center; justify-content: center;
+    padding: 10px 16px; gap: 10px;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+}
+select {
+    background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font-size: 14px; min-width: 220px;
+    cursor: pointer;
+}
+select:focus { outline: 2px solid var(--accent); }
+.btn {
+    background: var(--accent); color: white;
+    border: none; border-radius: 6px;
+    padding: 8px 16px; cursor: pointer; font-size: 14px;
+    transition: background 0.15s;
+}
+.btn:hover { background: var(--accent-hover); }
+.btn-secondary { background: #3a3a5a; }
+.btn-secondary:hover { background: #4a4a6a; }
+.btn-icon { padding: 8px 12px; font-size: 18px; font-weight: bold; line-height: 1; }
+.videos-grid {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    padding: 16px; gap: 12px;
+}
+.video-card {
+    width: 300px; height: 200px;
+    position: relative; background: #000;
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border);
+}
+.video-card video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.video-overlay {
+    position: absolute; top: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    padding: 0px 8px 8px;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+}
+.video-card:hover .video-overlay { opacity: 1; pointer-events: auto; }
+.video-tags {
+    font-size: 11px; color: #ccc;
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin-right: 8px;
+}
+.video-edit-btn {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: white; border-radius: 4px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    flex-shrink: 0;
+}
+.video-edit-btn:hover { background: rgba(255,255,255,0.25); }
+dialog {
+    background: var(--header-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 0; width: 440px; max-width: 95vw;
+}
+dialog::backdrop { background: rgba(0,0,0,0.65); }
+.dialog-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.dialog-header h2 { font-size: 16px; font-weight: 600; }
+.dialog-body { padding: 20px; }
+.dialog-footer {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 8px;
+}
+label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-muted); }
+input[type=text], textarea {
+    width: 100%; padding: 8px 10px;
+    background: var(--card-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px;
+}
+input[type=text]:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+textarea { height: 120px; resize: vertical; font-family: inherit; }
+.status-msg { min-height: 20px; font-size: 13px; margin-top: 10px; }
+.status-success { color: #5cb85c; }
+.status-error { color: #d9534f; }
+.htmx-indicator { display: none; margin-left: 6px; }
+.htmx-request .htmx-indicator { display: inline; }
+"#;
+
+const JS: &str = r#"
+function openTagsDialog(name, tags) {
+    document.getElementById('tags-video-name').value = name;
+    document.getElementById('tags-input').value = tags;
+    document.getElementById('tags-status').innerHTML = '';
+    document.getElementById('tags-dialog').showModal();
+}
+
+document.addEventListener('htmx:afterRequest', function(evt) {
+    var form = evt.detail.elt.closest('#tags-form');
+    if (form && evt.detail.successful) {
+        setTimeout(function() {
+            document.getElementById('tags-dialog').close();
+        }, 600);
+    }
+});
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.poster = entry.target.dataset.poster;
+      observer.unobserve(entry.target);
+    }
+  });
+});
+
+document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
+"#;
+
+fn render_video_card(video: &Video) -> Markup {
+    let tags_str = decode_tags(&video.tags).join(", ");
+    let onclick = format!("openTagsDialog({:?},{:?})", video.name, tags_str);
+    html! {
+        div class="video-card" {
+            video controls preload="none" data-poster=(video.thumbnail) {
+                source src=(video.url) type="video/mp4";
+            }
+            div class="video-overlay" {
+                span class="video-tags" title=(tags_str) { (tags_str) }
+                button class="video-edit-btn" onclick=(onclick) { "Edit tags" }
+            }
+        }
+    }
+}
+
+fn render_video_grid(videos: &[Video]) -> Markup {
+    html! {
+        div #videos-container class="videos-grid" {
+            @for video in videos {
+                (render_video_card(video))
+            }
+        }
+    }
+}
+
+fn render_page(videos: &[Video], all_tags: &[String]) -> Markup {
+    html! {
+        (DOCTYPE)
+        html lang="en" {
+            head {
+                meta charset="utf-8";
+                meta name="viewport" content="width=device-width, initial-scale=1";
+                title { "Couber" }
+                script src="https://unpkg.com/htmx.org@2.0.4" {}
+                style { (PreEscaped(CSS)) }
+            }
+            body {
+                header {
+                    select name="tag"
+                        hx-get="/list-videos"
+                        hx-target="#videos-container"
+                        hx-swap="outerHTML"
+                        hx-trigger="change"
+                        hx-include="this" {
+                        option value="" { "All videos" }
+                        @for tag in all_tags {
+                            option value=(tag) { (tag) }
+                        }
+                    }
+                    button class="btn btn-icon"
+                        onclick="document.getElementById('add-video-dialog').showModal()" {
+                        "+"
+                    }
+                }
+                main {
+                    (render_video_grid(videos))
+                }
+
+                dialog #add-video-dialog {
+                    div class="dialog-header" {
+                        h2 { "Add Video" }
+                        button class="btn btn-secondary"
+                            onclick="document.getElementById('add-video-dialog').close()" {
+                            "×"
+                        }
+                    }
+                    form hx-post="/add-video"
+                         hx-target="#add-video-status"
+                         hx-swap="innerHTML" {
+                        div class="dialog-body" {
+                            label for="video-url" { "Video URL" }
+                            input type="text" name="url" id="video-url"
+                                placeholder="https://coub.com/view/... or any video URL"
+                                required;
+                            div #add-video-status class="status-msg" {}
+                        }
+                        div class="dialog-footer" {
+                            button type="button" class="btn btn-secondary"
+                                onclick="document.getElementById('add-video-dialog').close()" {
+                                "Close"
+                            }
+                            button type="submit" class="btn" {
+                                "Add Video"
+                                span class="htmx-indicator" { "…" }
+                            }
+                        }
+                    }
+                }
+
+                dialog #tags-dialog {
+                    div class="dialog-header" {
+                        h2 { "Edit Tags" }
+                        button class="btn btn-secondary"
+                            onclick="document.getElementById('tags-dialog').close()" {
+                            "×"
+                        }
+                    }
+                    form id="tags-form"
+                         hx-post="/update-tags"
+                         hx-target="#tags-status"
+                         hx-swap="innerHTML" {
+                        div class="dialog-body" {
+                            input type="hidden" name="name" id="tags-video-name";
+                            label for="tags-input" { "Tags (comma-separated)" }
+                            textarea name="tags" id="tags-input" {}
+                            div #tags-status class="status-msg" {}
+                        }
+                        div class="dialog-footer" {
+                            button type="button" class="btn btn-secondary"
+                                onclick="document.getElementById('tags-dialog').close()" {
+                                "Close"
+                            }
+                            button type="submit" class="btn" {
+                                "Save Tags"
+                                span class="htmx-indicator" { "…" }
+                            }
+                        }
+                    }
+                }
+
+                script { (PreEscaped(JS)) }
+            }
+        }
+    }
+}
+
+// --- Route handlers ---
+
+async fn index(State(db): State<DbPool>) -> Result<Markup, (StatusCode, String)> {
+    let mut videos = database::list_videos(db.get().unwrap().borrow())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    videos.sort_by(|a, b| b.creation_timestamp.cmp(&a.creation_timestamp));
+
+    let mut all_tags: Vec<String> = videos
+        .iter()
+        .flat_map(|v| decode_tags(&v.tags))
+        .filter(|t| !t.is_empty() && t.len() < 30)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    all_tags.sort();
+
+    Ok(render_page(&videos, &all_tags))
+}
+
+#[derive(Deserialize)]
+struct VideoFilter {
+    tag: Option<String>,
+}
+
+async fn videos_partial(
+    State(db): State<DbPool>,
+    Query(filter): Query<VideoFilter>,
+) -> Result<Markup, (StatusCode, String)> {
+    let mut videos = database::list_videos(db.get().unwrap().borrow())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    videos.sort_by(|a, b| b.creation_timestamp.cmp(&a.creation_timestamp));
+
+    if let Some(tag) = filter.tag.filter(|t| !t.is_empty()) {
+        videos.retain(|v| decode_tags(&v.tags).iter().any(|t| *t == tag));
+    }
+
+    Ok(render_video_grid(&videos))
+}
+
+#[derive(Deserialize)]
+struct AddVideoForm {
+    url: String,
+}
+
+async fn add_video_form(
+    State(db): State<DbPool>,
+    Form(payload): Form<AddVideoForm>,
+) -> Markup {
+    let url = payload.url.trim().to_string();
+    if url.is_empty() {
+        return html! { span class="status-error" { "Please enter a URL." } };
+    }
+
+    let result = spawn_blocking(move || {
+        let videos_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
+        let video = if url.starts_with("https://coub.com") {
+            let coub_name = url.split('/').last().unwrap_or_default().to_string();
+            fetch_coub(&coub_name, &videos_path)?
+        } else {
+            fetch_video(&url, &videos_path)?
+        };
+        database::insert_video(db.get().unwrap().borrow(), &video)
+            .map_err(|e| eyre::eyre!(e.to_string()))?;
+        Ok::<_, eyre::Error>(video)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(_)) => html! { span class="status-success" { "Video added successfully!" } },
+        Ok(Err(e)) => html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+    }
+}
+
+#[derive(Deserialize)]
+struct UpdateTagsForm {
+    name: String,
+    tags: String,
+}
+
+async fn update_tags_form(
+    State(db): State<DbPool>,
+    Form(payload): Form<UpdateTagsForm>,
+) -> Markup {
+    let tags: Vec<String> = payload
+        .tags
+        .split(',')
+        .map(|t| urlencoding::encode(t.trim()).into_owned())
+        .filter(|t| !t.is_empty())
+        .collect();
+
+    let name = payload.name.clone();
+    let result = spawn_blocking(move || {
+        database::set_tags(db.get().unwrap().borrow(), &name, &tags)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(_)) => html! { span class="status-success" { "Tags saved!" } },
+        Ok(Err(e)) => html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+    }
+}
+
+// --- Legacy JSON API (kept for compatibility) ---
 
 async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (StatusCode, String)> {
     database::list_videos(db.get().unwrap().borrow())
@@ -73,7 +444,7 @@ async fn insert_video(
         if vid_url.starts_with("https://coub.com") {
             let coub_name = vid_url.split('/').last().unwrap_or_default();
             fetch_coub(
-                &coub_name,
+                coub_name,
                 &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
             )
         } else {
@@ -102,59 +473,39 @@ async fn add_video_tags(
         .await
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
-
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    // Logging
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }
     env_logger::init();
 
-    // Database and connection pool setup
     let connspec = std::env::var("DATABASE_PATH").unwrap_or("db.sqlite".to_string());
     let manager = SqliteConnectionManager::file(connspec);
     let pool: DbPool = r2d2::Pool::new(manager).expect("Failed to create pool to sqlite database.");
     create_database(pool.get()?.borrow()).expect("Cannot create database schema");
 
-    // API/Webservice setup
     let port = std::env::var("PORT").unwrap_or("8080".to_string());
-    let scripts_dir_path = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
     let videos_dir_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
-    let webapp_dir_path = std::env::var("WEBAPP_PATH").unwrap_or("./dist/".to_string());
+    let scripts_dir_path = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
     info!("videos_dir_path: {}", videos_dir_path);
-    info!("webapp_dir_path: {}", webapp_dir_path);
     info!("scripts_dir_path: {}", scripts_dir_path);
 
-    //HttpServer::new(move || App::new()
-    //    .wrap(middleware::Logger::default())
-    //    .data(pool.clone())
-    //    .data(web::JsonConfig::default().limit(4096))
-    //    .service(get_videos)
-    //    .service(add_video_tags)
-    //    .service(insert_video)
-    //    .service(fs::Files::new("/videos", &videos_dir_path).show_files_listing())
-    //    .service(fs::Files::new("/", &webapp_dir_path))
-    //)
-    //    .bind(format!("[::]:{}", &port))?
-    //    .run()
-    //    .await
-
-    // build our application with a route
     let app = Router::new()
+        .route("/", get(index))
+        .route("/list-videos", get(videos_partial))
+        .route("/add-video", post(add_video_form))
+        .route("/update-tags", post(update_tags_form))
         .route("/api/videos", get(get_videos))
         .route("/api/video", put(insert_video))
         .route("/api/video/{name}/tags", put(add_video_tags))
         .nest_service("/videos", ServeDir::new(videos_dir_path))
-        .fallback_service(ServeDir::new(webapp_dir_path))
         .with_state(pool);
 
-    // run it
     let listener = tokio::net::TcpListener::bind(format!("[::]:{}", port)).await?;
-
     info!("listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
 
