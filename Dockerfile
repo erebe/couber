@@ -1,20 +1,19 @@
 # Rust backend
-FROM rust:1.93-slim AS builder_backend
-
-LABEL org.opencontainers.image.source=https://github.com/erebe/couber
-
-COPY docker/dummy.rs backend/dummy.rs
-COPY backend/Cargo.toml backend/Cargo.toml
-
+FROM rust:1.93-slim AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /backend
-RUN sed -i 's#src/main.rs#dummy.rs#' Cargo.toml && \
-    cargo fetch && \
-    cargo build --release
+
+FROM chef AS planner
+COPY backend .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder_backend
+
+COPY --from=planner /backend/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY backend .
-
-RUN sed -i 's#dummy.rs#src/main.rs#' Cargo.toml && \
-   cargo build --release
+RUN cargo build --release
 
 
 # Runner

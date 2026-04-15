@@ -94,7 +94,7 @@ fn render_video_grid(videos: &[Video]) -> Markup {
     }
 }
 
-fn render_page(videos: &[Video], all_tags: &[String]) -> Markup {
+fn render_page(videos: &[Video]) -> Markup {
     html! {
         (DOCTYPE)
         html lang="en" {
@@ -102,21 +102,15 @@ fn render_page(videos: &[Video], all_tags: &[String]) -> Markup {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { "Couber" }
-                script src="https://unpkg.com/htmx.org@2.0.4" {}
+                script src="https://unpkg.com/htmx.org@2.0.8" {}
+                link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/css/autoComplete.min.css";
+                script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js" {}
                 style { (PreEscaped(CSS)) }
             }
             body {
                 header {
-                    select name="tag"
-                        hx-get="/list-videos"
-                        hx-target="#videos-container"
-                        hx-swap="outerHTML"
-                        hx-trigger="change"
-                        hx-include="this" {
-                        option value="" { "All videos" }
-                        @for tag in all_tags {
-                            option value=(tag) { (tag) }
-                        }
+                    div class="tag-search" {
+                        input #tag-input type="text" placeholder="Filter by tag…" autocomplete="off";
                     }
                     button class="btn btn-icon"
                         onclick="document.getElementById('add-video-dialog').showModal()" {
@@ -201,17 +195,7 @@ async fn index(State(db): State<DbPool>) -> Result<Markup, (StatusCode, String)>
     let mut videos = database::list_videos(db.get().unwrap().borrow())
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     videos.sort_by(|a, b| b.creation_timestamp.cmp(&a.creation_timestamp));
-
-    let mut all_tags: Vec<String> = videos
-        .iter()
-        .flat_map(|v| decode_tags(&v.tags))
-        .filter(|t| !t.is_empty() && t.len() < 30)
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    all_tags.sort();
-
-    Ok(render_page(&videos, &all_tags))
+    Ok(render_page(&videos))
 }
 
 #[derive(Deserialize)]
@@ -299,6 +283,20 @@ async fn update_tags_form(
     }
 }
 
+async fn list_tags(State(db): State<DbPool>) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+    let videos = database::list_videos(db.get().unwrap().borrow())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut tags: Vec<String> = videos
+        .iter()
+        .flat_map(|v| decode_tags(&v.tags))
+        .filter(|t| !t.is_empty() && t.len() < 30)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    tags.sort();
+    Ok(Json(tags))
+}
+
 // --- Legacy JSON API (kept for compatibility) ---
 
 async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (StatusCode, String)> {
@@ -371,6 +369,7 @@ async fn main() -> eyre::Result<()> {
         .route("/list-videos", get(videos_partial))
         .route("/add-video", post(add_video_form))
         .route("/update-tags", post(update_tags_form))
+        .route("/api/tags", get(list_tags))
         .route("/api/videos", get(get_videos))
         .route("/api/video", put(insert_video))
         .route("/api/video/{name}/tags", put(add_video_tags))

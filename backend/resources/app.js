@@ -5,15 +5,6 @@ function openTagsDialog(name, tags) {
     document.getElementById('tags-dialog').showModal();
 }
 
-document.addEventListener('htmx:afterRequest', function(evt) {
-    var form = evt.detail.elt.closest('#tags-form');
-    if (form && evt.detail.successful) {
-        setTimeout(function() {
-            document.getElementById('tags-dialog').close();
-        }, 600);
-    }
-});
-
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
@@ -24,3 +15,37 @@ const observer = new IntersectionObserver((entries) => {
 });
 
 document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
+
+// Tag autocomplete + dynamic filtering
+(function() {
+    function filterVideos(tag) {
+        document.querySelectorAll('.video-card').forEach(card => {
+            if (!tag) { card.style.display = ''; return; }
+            const tagsEl = card.querySelector('.video-tags');
+            const cardTags = tagsEl ? tagsEl.title.split(',').map(t => t.trim().toLowerCase()) : [];
+            card.style.display = cardTags.includes(tag.toLowerCase()) ? '' : 'none';
+        });
+    }
+
+    new autoComplete({
+        selector: '#tag-input',
+        data: {
+            src: async () => {
+                const res = await fetch('/api/tags');
+                return res.json();
+            },
+            cache: true,
+        },
+        resultItem: { highlight: true },
+        events: {
+            input: {
+                selection(event) {
+                    const value = event.detail.selection.value;
+                    document.getElementById('tag-input').value = value;
+                    filterVideos(value);
+                }
+            }
+        }
+    });
+
+})();
