@@ -1,4 +1,5 @@
-function openTagsDialog(name, tags) {
+function openTagsDialog(name, btn) {
+    const tags = btn.closest('.video-card').dataset.tags;
     document.getElementById('tags-video-name').value = name;
     document.getElementById('tags-input').value = tags;
     document.getElementById('tags-status').innerHTML = '';
@@ -16,14 +17,17 @@ const observer = new IntersectionObserver((entries) => {
 
 document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
 
+document.querySelectorAll('.video-card').forEach(card => {
+    card.querySelector('.video-tags').textContent = card.dataset.tags;
+});
+
 // Tag autocomplete + dynamic filtering
 (function() {
     function filterVideos(tag) {
         document.querySelectorAll('.video-card').forEach(card => {
             if (!tag) { card.style.display = ''; return; }
-            const tagsEl = card.querySelector('.video-tags');
-            const cardTags = tagsEl ? tagsEl.title.split(',').map(t => t.trim().toLowerCase()) : [];
-            card.style.display = cardTags.includes(tag.toLowerCase()) ? '' : 'none';
+            const cardTags = (card.dataset.tags || '').split(',').map(t => t.trim().toLowerCase());
+            card.style.display = cardTags.find(t => t.includes(tag.toLowerCase())) ? '' : 'none';
         });
     }
 
@@ -37,15 +41,19 @@ document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v)
             cache: true,
         },
         resultItem: { highlight: true },
-        events: {
-            input: {
-                selection(event) {
-                    const value = event.detail.selection.value;
-                    document.getElementById('tag-input').value = value;
-                    filterVideos(value);
-                }
-            }
-        }
+        resultsList: {
+            maxResults: 10,
+        },
     });
 
+    const input = document.getElementById('tag-input');
+    let debounceTimer;
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => filterVideos(input.value), 300);
+    });
+
+    input.addEventListener('autoComplete-select', (e) => {
+        filterVideos(e.detail.value);
+    });
 })();

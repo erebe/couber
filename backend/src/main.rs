@@ -1,13 +1,14 @@
 #[macro_use]
 extern crate log;
 
-use axum::extract::{Form, Path, Query, State};
+use axum::extract::{Form, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 use serde::Deserialize;
 use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::fs::File;
 use std::process::Command;
 
@@ -55,30 +56,19 @@ fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
     Ok(video)
 }
 
-fn decode_tags(tags: &[String]) -> Vec<String> {
-    tags.iter()
-        .map(|t| {
-            urlencoding::decode(t)
-                .map(|s| s.into_owned())
-                .unwrap_or_else(|_| t.clone())
-        })
-        .collect()
-}
-
 const CSS: &str = include_str!("../resources/style.css");
 const JS: &str = include_str!("../resources/app.js");
 
 fn render_video_card(video: &Video) -> Markup {
-    let tags_str = decode_tags(&video.tags).join(", ");
-    let onclick = format!("openTagsDialog({:?},{:?})", video.name, tags_str);
+    let tags = video.tags.iter().map(decode_tags).collect::<Vec<_>>().join(", ");
     html! {
-        div class="video-card" {
+        div class="video-card" data-tags=(tags) {
             video controls preload="none" data-poster=(video.thumbnail) {
                 source src=(video.url) type="video/mp4";
             }
             div class="video-overlay" {
-                span class="video-tags" title=(tags_str) { (tags_str) }
-                button class="video-edit-btn" onclick=(onclick) { "Edit tags" }
+                span class="video-tags" {}
+                button class="video-edit-btn" onclick=(format!("openTagsDialog({:?},this)", video.name)) { "Edit tags" }
             }
         }
     }
@@ -199,26 +189,6 @@ async fn index(State(db): State<DbPool>) -> Result<Markup, (StatusCode, String)>
 }
 
 #[derive(Deserialize)]
-struct VideoFilter {
-    tag: Option<String>,
-}
-
-async fn videos_partial(
-    State(db): State<DbPool>,
-    Query(filter): Query<VideoFilter>,
-) -> Result<Markup, (StatusCode, String)> {
-    let mut videos = database::list_videos(db.get().unwrap().borrow())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    videos.sort_by(|a, b| b.creation_timestamp.cmp(&a.creation_timestamp));
-
-    if let Some(tag) = filter.tag.filter(|t| !t.is_empty()) {
-        videos.retain(|v| decode_tags(&v.tags).iter().any(|t| *t == tag));
-    }
-
-    Ok(render_video_grid(&videos))
-}
-
-#[derive(Deserialize)]
 struct AddVideoForm {
     url: String,
 }
@@ -283,26 +253,19 @@ async fn update_tags_form(
     }
 }
 
-async fn list_tags(State(db): State<DbPool>) -> Result<Json<Vec<String>>, (StatusCode, String)> {
-    let videos = database::list_videos(db.get().unwrap().borrow())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let mut tags: Vec<String> = videos
-        .iter()
-        .flat_map(|v| decode_tags(&v.tags))
-        .filter(|t| !t.is_empty() && t.len() < 30)
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    tags.sort();
-    Ok(Json(tags))
+fn decode_tags<T: AsRef<str>>(tags: T) -> String {
+    urlencoding::decode(tags.as_ref()).unwrap_or_default().into_owned()
 }
 
-// --- Legacy JSON API (kept for compatibility) ---
-
-async fn get_videos(State(db): State<DbPool>) -> Result<Json<Vec<Video>>, (StatusCode, String)> {
-    database::list_videos(db.get().unwrap().borrow())
-        .map(Json)
-        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
+async fn list_tags(State(db): State<DbPool>) -> Result<Json<HashSet<String>>, (StatusCode, String)> {
+    let videos = database::list_videos(db.get().unwrap().borrow())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let tags: HashSet<String> = videos
+        .into_iter()
+        .flat_map(|v| v.tags)
+        .map(decode_tags)
+        .collect();
+    Ok(Json(tags))
 }
 
 async fn insert_video(
@@ -366,11 +329,9 @@ async fn main() -> eyre::Result<()> {
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/list-videos", get(videos_partial))
         .route("/add-video", post(add_video_form))
         .route("/update-tags", post(update_tags_form))
         .route("/api/tags", get(list_tags))
-        .route("/api/videos", get(get_videos))
         .route("/api/video", put(insert_video))
         .route("/api/video/{name}/tags", put(add_video_tags))
         .nest_service("/videos", ServeDir::new(videos_dir_path))
