@@ -48,7 +48,8 @@ fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
     let scripts_dir = std::env::var("SCRIPTS_PATH").unwrap_or("./scripts/".to_string());
     let video_name = calculate_hash(video_url);
     let mut cmd = Command::new("./generic_vids.sh");
-    cmd.args([video_url, output_path, &video_name]).current_dir(scripts_dir);
+    cmd.args([video_url, output_path, &video_name])
+        .current_dir(scripts_dir);
     info!("Video fetched: {:?}", cmd);
     cmd.output()?;
     let video_file = File::open(format!("{}/{}/{}.js", output_path, video_name, video_name))?;
@@ -60,9 +61,14 @@ const CSS: &str = include_str!("../resources/style.css");
 const JS: &str = include_str!("../resources/app.js");
 
 fn render_video_card(video: &Video) -> Markup {
-    let tags = video.tags.iter().map(decode_tags).collect::<Vec<_>>().join(", ");
+    let tags = video
+        .tags
+        .iter()
+        .map(decode_tags)
+        .collect::<Vec<_>>()
+        .join(", ");
     html! {
-        div class="video-card" data-tags=(tags) {
+        div class="video-card" style="visibility: hidden;" data-tags=(tags) {
             video controls preload="none" data-poster=(video.thumbnail) {
                 source src=(video.url) type="video/mp4";
             }
@@ -193,10 +199,7 @@ struct AddVideoForm {
     url: String,
 }
 
-async fn add_video_form(
-    State(db): State<DbPool>,
-    Form(payload): Form<AddVideoForm>,
-) -> Markup {
+async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoForm>) -> Markup {
     let url = payload.url.trim().to_string();
     if url.is_empty() {
         return html! { span class="status-error" { "Please enter a URL." } };
@@ -229,10 +232,7 @@ struct UpdateTagsForm {
     tags: String,
 }
 
-async fn update_tags_form(
-    State(db): State<DbPool>,
-    Form(payload): Form<UpdateTagsForm>,
-) -> Markup {
+async fn update_tags_form(State(db): State<DbPool>, Form(payload): Form<UpdateTagsForm>) -> Markup {
     let tags: Vec<String> = payload
         .tags
         .split(',')
@@ -241,10 +241,8 @@ async fn update_tags_form(
         .collect();
 
     let name = payload.name.clone();
-    let result = spawn_blocking(move || {
-        database::set_tags(db.get().unwrap().borrow(), &name, &tags)
-    })
-    .await;
+    let result =
+        spawn_blocking(move || database::set_tags(db.get().unwrap().borrow(), &name, &tags)).await;
 
     match result {
         Ok(Ok(_)) => html! { span class="status-success" { "Tags saved!" } },
@@ -254,10 +252,14 @@ async fn update_tags_form(
 }
 
 fn decode_tags<T: AsRef<str>>(tags: T) -> String {
-    urlencoding::decode(tags.as_ref()).unwrap_or_default().into_owned()
+    urlencoding::decode(tags.as_ref())
+        .unwrap_or_default()
+        .into_owned()
 }
 
-async fn list_tags(State(db): State<DbPool>) -> Result<Json<HashSet<String>>, (StatusCode, String)> {
+async fn list_tags(
+    State(db): State<DbPool>,
+) -> Result<Json<HashSet<String>>, (StatusCode, String)> {
     let videos = database::list_videos(db.get().unwrap().borrow())
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let tags: HashSet<String> = videos

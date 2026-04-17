@@ -10,16 +10,12 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
       entry.target.poster = entry.target.dataset.poster;
+      entry.target.style.visibility = "visible";
       observer.unobserve(entry.target);
     }
   });
 });
 
-document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
-
-document.querySelectorAll('.video-card').forEach(card => {
-    card.querySelector('.video-tags').textContent = card.dataset.tags;
-});
 
 // Tag autocomplete + dynamic filtering
 (function() {
@@ -55,5 +51,10 @@ document.querySelectorAll('.video-card').forEach(card => {
 
     input.addEventListener('autoComplete-select', (e) => {
         filterVideos(e.detail.value);
+    });
+
+    document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
+    document.querySelectorAll('.video-card').forEach(card => {
+        card.querySelector('.video-tags').textContent = card.dataset.tags;
     });
 })();
