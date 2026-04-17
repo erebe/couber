@@ -5,7 +5,7 @@ use axum::extract::{Form, Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use maud::{html, Markup, PreEscaped, DOCTYPE};
+use maud::{html, Markup};
 use serde::Deserialize;
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -17,8 +17,10 @@ use r2d2_sqlite::SqliteConnectionManager;
 use sha2::Digest;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
+use crate::page_renderer::render_page;
 
 mod database;
+mod page_renderer;
 
 type DbPool = r2d2::Pool<SqliteConnectionManager>;
 
@@ -55,132 +57,6 @@ fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
     let video_file = File::open(format!("{}/{}/{}.js", output_path, video_name, video_name))?;
     let video: Video = serde_json::from_reader(video_file)?;
     Ok(video)
-}
-
-const CSS: &str = include_str!("../resources/style.css");
-const JS: &str = include_str!("../resources/app.js");
-
-fn render_video_card(video: &Video) -> Markup {
-    let tags = video
-        .tags
-        .iter()
-        .map(decode_tags)
-        .collect::<Vec<_>>()
-        .join(", ");
-    html! {
-        div class="video-card invisible" {
-            img data-poster=(video.thumbnail) data-src=(video.url) data-video-name=(video.name) data-tags=(tags) loading="lazy" { }
-            div class="video-overlay" {
-                span class="video-tags" {}
-                button class="video-edit-btn" { "Edit tags" }
-            }
-        }
-    }
-}
-
-fn render_video_grid(videos: &[Video]) -> Markup {
-    html! {
-        div #videos-container class="videos-grid" {
-            @for video in videos {
-                (render_video_card(video))
-            }
-        }
-    }
-}
-
-fn render_page(videos: &[Video]) -> Markup {
-    html! {
-        (DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="utf-8";
-                meta name="viewport" content="width=device-width, initial-scale=1";
-                title { "Couber" }
-                script src="https://unpkg.com/htmx.org@2.0.8" {}
-                link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/css/autoComplete.min.css";
-                script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@10.2.7/dist/autoComplete.min.js" {}
-                style { (PreEscaped(CSS)) }
-            }
-            body {
-                header {
-                    div class="tag-search" {
-                        input #tag-input type="text" placeholder="Filter by tag…" autocomplete="off";
-                    }
-                    button class="btn btn-icon"
-                        onclick="document.getElementById('add-video-dialog').showModal()" {
-                        "+"
-                    }
-                }
-                main {
-                    (render_video_grid(videos))
-                }
-
-                dialog #add-video-dialog {
-                    div class="dialog-header" {
-                        h2 { "Add Video" }
-                        button class="btn btn-secondary"
-                            onclick="document.getElementById('add-video-dialog').close()" {
-                            "×"
-                        }
-                    }
-                    form hx-post="/add-video"
-                         hx-target="#add-video-status"
-                         hx-swap="innerHTML" {
-                        div class="dialog-body" {
-                            label for="video-url" { "Video URL" }
-                            input type="text" name="url" id="video-url"
-                                placeholder="https://coub.com/view/... or any video URL"
-                                required;
-                            div #add-video-status class="status-msg" {}
-                        }
-                        div class="dialog-footer" {
-                            button type="button" class="btn btn-secondary"
-                                onclick="document.getElementById('add-video-dialog').close()" {
-                                "Close"
-                            }
-                            button type="submit" class="btn" {
-                                "Add Video"
-                                span class="htmx-indicator" { "…" }
-                            }
-                        }
-                    }
-                }
-
-                dialog #tags-dialog {
-                    div class="dialog-header" {
-                        h2 { "Edit Tags" }
-                        button class="btn btn-secondary"
-                            onclick="document.getElementById('tags-dialog').close()" {
-                            "×"
-                        }
-                    }
-                    form id="tags-form"
-                         hx-post="/update-tags"
-                         hx-target="#tags-status"
-                         hx-swap="innerHTML" {
-                        div class="dialog-body" {
-                            input type="hidden" name="name" id="tags-video-name";
-                            label for="tags-input" { "Tags (comma-separated)" }
-                            textarea name="tags" id="tags-input" {}
-                            div #tags-status class="status-msg" {}
-                        }
-                        div class="dialog-footer" {
-                            button type="button" class="btn btn-secondary"
-                                onclick="document.getElementById('tags-dialog').close()" {
-                                "Close"
-                            }
-                            button type="submit" class="btn" {
-                                "Save Tags"
-                                span class="htmx-indicator" { "…" }
-                            }
-                        }
-                    }
-                }
-
-                script { (PreEscaped(JS)) }
-            }
-        }
-    }
 }
 
 // --- Route handlers ---
