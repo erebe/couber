@@ -43,8 +43,7 @@ select:focus { outline: 2px solid var(--accent); }
     visibility: visible;
 }
 
-
-.unvisible, .unvisible * {
+.invisible, .invisible * {
     visibility: hidden;
 }
 

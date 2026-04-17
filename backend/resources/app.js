@@ -1,5 +1,4 @@
-function openTagsDialog(name, btn) {
-    const tags = btn.closest('.video-card').dataset.tags;
+function openTagsDialog(name, tags) {
     document.getElementById('tags-video-name').value = name;
     document.getElementById('tags-input').value = tags;
     document.getElementById('tags-status').innerHTML = '';
@@ -19,13 +18,13 @@ const observer = new IntersectionObserver((entries) => {
 
       const edit_btn = entry.target.querySelector(".video-edit-btn");
       edit_btn.addEventListener("click", () => {
-        openTagsDialog(image.dataset.videoName, edit_btn);
+        openTagsDialog(image.dataset.videoName, image.dataset.tags);
       });
 
      const tags = entry.target.querySelector(".video-tags");
-     tags.textContent = entry.target.dataset.tags;
+     tags.textContent = image.dataset.tags;
 
-      entry.target.classList.replace("unvisible", "visible");
+      entry.target.classList.replace("invisible", "visible");
       observer.unobserve(entry.target);
     }
   });
