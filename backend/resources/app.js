@@ -9,8 +9,23 @@ function openTagsDialog(name, btn) {
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
-      entry.target.poster = entry.target.dataset.poster;
-      entry.target.style.visibility = "visible";
+      const video = document.createElement('video');
+      const image = entry.target.querySelector('img');
+      video.src = image.dataset.src;
+      video.poster = image.dataset.poster;
+      video.type = 'video/mp4';
+      video.controls = true;
+      image.replaceWith(video);
+
+      const edit_btn = entry.target.querySelector(".video-edit-btn");
+      edit_btn.addEventListener("click", () => {
+        openTagsDialog(image.dataset.videoName, edit_btn);
+      });
+
+     const tags = entry.target.querySelector(".video-tags");
+     tags.textContent = entry.target.dataset.tags;
+
+      entry.target.classList.replace("unvisible", "visible");
       observer.unobserve(entry.target);
     }
   });
@@ -53,8 +68,7 @@ const observer = new IntersectionObserver((entries) => {
         filterVideos(e.detail.value);
     });
 
-    document.querySelectorAll('video[data-poster]').forEach(v => observer.observe(v));
     document.querySelectorAll('.video-card').forEach(card => {
-        card.querySelector('.video-tags').textContent = card.dataset.tags;
+        observer.observe(card)
     });
 })();

@@ -38,6 +38,16 @@ select:focus { outline: 2px solid var(--accent); }
     display: flex; flex-wrap: wrap; justify-content: center;
     padding: 16px; gap: 12px;
 }
+
+.visible, .visible * {
+    visibility: visible;
+}
+
+
+.unvisible, .unvisible * {
+    visibility: hidden;
+}
+
 .video-card {
     width: 300px; height: 200px;
     position: relative; background: #000;

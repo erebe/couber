@@ -68,13 +68,11 @@ fn render_video_card(video: &Video) -> Markup {
         .collect::<Vec<_>>()
         .join(", ");
     html! {
-        div class="video-card" style="visibility: hidden;" data-tags=(tags) {
-            video controls preload="none" data-poster=(video.thumbnail) {
-                source src=(video.url) type="video/mp4";
-            }
+        div class="video-card unvisible" data-tags=(tags) {
+            img data-poster=(video.thumbnail) data-src=(video.url) data-video-name=(video.name) loading="lazy" { }
             div class="video-overlay" {
                 span class="video-tags" {}
-                button class="video-edit-btn" onclick=(format!("openTagsDialog({:?},this)", video.name)) { "Edit tags" }
+                button class="video-edit-btn" { "Edit tags" }
             }
         }
     }
