@@ -18,11 +18,11 @@ const observer = new IntersectionObserver((entries) => {
 
       const edit_btn = entry.target.querySelector(".video-edit-btn");
       edit_btn.addEventListener("click", () => {
-        openTagsDialog(image.dataset.videoName, image.dataset.tags);
+        openTagsDialog(image.dataset.videoName, entry.target.dataset.tags);
       });
 
      const tags = entry.target.querySelector(".video-tags");
-     tags.textContent = image.dataset.tags;
+     tags.textContent = entry.target.dataset.tags;
 
       entry.target.classList.replace("invisible", "visible");
       observer.unobserve(entry.target);
@@ -41,7 +41,8 @@ const observer = new IntersectionObserver((entries) => {
         });
     }
 
-    new autoComplete({
+    let aAutoComplete;
+    aAutoComplete = new autoComplete({
         selector: '#tag-input',
         data: {
             src: async () => {
@@ -50,21 +51,23 @@ const observer = new IntersectionObserver((entries) => {
             },
             cache: true,
         },
+        debounce: 300,
         resultItem: { highlight: true },
         resultsList: {
             maxResults: 10,
         },
-    });
-
-    const input = document.getElementById('tag-input');
-    let debounceTimer;
-    input.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => filterVideos(input.value), 300);
-    });
-
-    input.addEventListener('autoComplete-select', (e) => {
-        filterVideos(e.detail.value);
+        events: {
+            input: {
+                selection: (event) => {
+                    event.target.value = event.detail.selection.value;
+                    filterVideos(event.target.value);
+                },
+                input: (event) => {
+                    filterVideos(event.target.value);
+                    aAutoComplete.start();
+                }
+            }
+        }
     });
 
     document.querySelectorAll('.video-card').forEach(card => {
