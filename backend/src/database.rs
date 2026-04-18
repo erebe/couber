@@ -45,7 +45,7 @@ pub fn insert_video(
     video: &Video,
 ) -> rusqlite::Result<()> {
     cnx.execute("INSERT OR REPLACE INTO videos (name, url, tags, original, thumbnail, creation_timestamp) VALUES (?,?,?,?,?,?)",
-                &[&video.name, &video.url, &serde_json::to_string(&video.tags).unwrap(), &video.original, &video.thumbnail, video.creation_timestamp.to_string().as_str()])?;
+                [&video.name, &video.url, &serde_json::to_string(&video.tags).unwrap(), &video.original, &video.thumbnail, video.creation_timestamp.to_string().as_str()])?;
     Ok(())
 }
 
@@ -56,7 +56,7 @@ pub fn set_tags(
 ) -> rusqlite::Result<()> {
     cnx.execute(
         "UPDATE videos SET tags = ? WHERE name = ?",
-        &[&serde_json::to_string(tags).unwrap_or_default(), video_name],
+        [&serde_json::to_string(tags).unwrap_or_default(), video_name],
     )?;
     Ok(())
 }
@@ -80,7 +80,7 @@ pub fn add_tag(
                 FROM json_each(?)
             )
         ) where name = ?"#,
-        &[
+        [
             video_name,
             &serde_json::to_string(tags).unwrap_or_default(),
             video_name,

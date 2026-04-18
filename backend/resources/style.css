@@ -48,7 +48,7 @@ select:focus { outline: 2px solid var(--accent); }
 }
 
 .video-card {
-    width: 300px; height: 200px;
+    width: 400px; height: 300px;
     position: relative; background: #000;
     border-radius: 6px; overflow: hidden;
     border: 1px solid var(--border);

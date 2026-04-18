@@ -1,6 +1,6 @@
-use maud::{html, Markup, PreEscaped, DOCTYPE};
 use crate::database::Video;
 use crate::decode_tags;
+use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 const CSS: &str = include_str!("../resources/style.css");
 const JS: &str = include_str!("../resources/app.js");
@@ -127,4 +127,3 @@ pub fn render_page(videos: &[Video]) -> Markup {
         }
     }
 }
-

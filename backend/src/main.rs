@@ -13,11 +13,11 @@ use std::fs::File;
 use std::process::Command;
 
 use crate::database::{create_database, Video};
+use crate::page_renderer::render_page;
 use r2d2_sqlite::SqliteConnectionManager;
 use sha2::Digest;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
-use crate::page_renderer::render_page;
 
 mod database;
 mod page_renderer;
@@ -64,7 +64,7 @@ fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
 async fn index(State(db): State<DbPool>) -> Result<Markup, (StatusCode, String)> {
     let mut videos = database::list_videos(db.get().unwrap().borrow())
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    videos.sort_by(|a, b| b.creation_timestamp.cmp(&a.creation_timestamp));
+    videos.sort_by_key(| b| std::cmp::Reverse(b.creation_timestamp));
     Ok(render_page(&videos))
 }
 
@@ -82,7 +82,7 @@ async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoFo
     let result = spawn_blocking(move || {
         let videos_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
         let video = if url.starts_with("https://coub.com") {
-            let coub_name = url.split('/').last().unwrap_or_default().to_string();
+            let coub_name = url.split('/').next_back().unwrap_or_default().to_string();
             fetch_coub(&coub_name, &videos_path)?
         } else {
             fetch_video(&url, &videos_path)?
@@ -151,7 +151,7 @@ async fn insert_video(
     let vid_url = payload.url;
     let video = spawn_blocking(move || {
         if vid_url.starts_with("https://coub.com") {
-            let coub_name = vid_url.split('/').last().unwrap_or_default();
+            let coub_name = vid_url.split('/').next_back().unwrap_or_default();
             fetch_coub(
                 coub_name,
                 &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
