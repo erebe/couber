@@ -7,22 +7,24 @@ use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use maud::{html, Markup};
 use serde::Deserialize;
-use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::fs::File;
 use std::process::Command;
 
 use crate::database::{create_database, Video};
+use crate::image_tagger::extract_image_tags;
 use crate::page_renderer::render_page;
-use r2d2_sqlite::SqliteConnectionManager;
 use sha2::Digest;
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::SqlitePool;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
 
 mod database;
+mod image_tagger;
 mod page_renderer;
 
-type DbPool = r2d2::Pool<SqliteConnectionManager>;
+type DbPool = SqlitePool;
 
 #[derive(serde::Deserialize)]
 struct InsertVideoPayload {
@@ -62,9 +64,10 @@ fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
 // --- Route handlers ---
 
 async fn index(State(db): State<DbPool>) -> Result<Markup, (StatusCode, String)> {
-    let mut videos = database::list_videos(db.get().unwrap().borrow())
+    let mut videos = database::list_videos(&db)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    videos.sort_by_key(| b| std::cmp::Reverse(b.creation_timestamp));
+    videos.sort_by_key(|b| std::cmp::Reverse(b.creation_timestamp));
     Ok(render_page(&videos))
 }
 
@@ -79,7 +82,7 @@ async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoFo
         return html! { span class="status-error" { "Please enter a URL." } };
     }
 
-    let result = spawn_blocking(move || {
+    let fetch_result = spawn_blocking(move || {
         let videos_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
         let video = if url.starts_with("https://coub.com") {
             let coub_name = url.split('/').next_back().unwrap_or_default().to_string();
@@ -87,15 +90,21 @@ async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoFo
         } else {
             fetch_video(&url, &videos_path)?
         };
-        database::insert_video(db.get().unwrap().borrow(), &video)
-            .map_err(|e| eyre::eyre!(e.to_string()))?;
         Ok::<_, eyre::Error>(video)
     })
     .await;
 
-    match result {
-        Ok(Ok(_)) => html! { span class="status-success" { "Video added successfully!" } },
-        Ok(Err(e)) => html! { span class="status-error" { "Error: " (e) } },
+
+    let mut video = match fetch_result {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => return html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => return html! { span class="status-error" { "Error: " (e) } },
+    };
+
+    let tags = extract_image_tags(&std::path::Path::new(&video.url)).await.unwrap_or_default();
+    video.tags.extend(tags);
+    match database::insert_video(&db, &video).await {
+        Ok(_) => html! { span class="status-success" { "Video added successfully!" } },
         Err(e) => html! { span class="status-error" { "Error: " (e) } },
     }
 }
@@ -114,13 +123,13 @@ async fn update_tags_form(State(db): State<DbPool>, Form(payload): Form<UpdateTa
         .filter(|t| !t.is_empty())
         .collect();
 
-    let name = payload.name.clone();
-    let result =
-        spawn_blocking(move || database::set_tags(db.get().unwrap().borrow(), &name, &tags)).await;
+    let thumbmail_path = format!("videos/{}/{}.thumbnail.png", payload.name, payload.name);
+    let ntags = extract_image_tags(&std::path::Path::new(&thumbmail_path)).await;
+    info!("Tags fetched for {}: {:?}", payload.name, ntags);
+    let tags = tags.into_iter().chain(ntags.unwrap_or_default()).collect::<HashSet<String>>();
 
-    match result {
-        Ok(Ok(_)) => html! { span class="status-success" { "Tags saved!" } },
-        Ok(Err(e)) => html! { span class="status-error" { "Error: " (e) } },
+    match database::set_tags(&db, &payload.name, &tags).await {
+        Ok(_) => html! { span class="status-success" { "Tags saved!" } },
         Err(e) => html! { span class="status-error" { "Error: " (e) } },
     }
 }
@@ -134,7 +143,8 @@ fn decode_tags<T: AsRef<str>>(tags: T) -> String {
 async fn list_tags(
     State(db): State<DbPool>,
 ) -> Result<Json<HashSet<String>>, (StatusCode, String)> {
-    let videos = database::list_videos(db.get().unwrap().borrow())
+    let videos = database::list_videos(&db)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let tags: HashSet<String> = videos
         .into_iter()
@@ -167,7 +177,8 @@ async fn insert_video(
     .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
     .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
-    database::insert_video(db.get().unwrap().borrow(), &video)
+    database::insert_video(&db, &video)
+        .await
         .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?;
 
     Ok(Json(video))
@@ -178,9 +189,8 @@ async fn add_video_tags(
     Path(name): Path<String>,
     Json(tags): Json<Vec<String>>,
 ) -> Result<(), (StatusCode, String)> {
-    spawn_blocking(move || database::add_tag(db.get().unwrap().borrow(), &name, &tags))
+    database::add_tag(&db, &name, &tags)
         .await
-        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
     Ok(())
 }
@@ -193,9 +203,15 @@ async fn main() -> eyre::Result<()> {
     env_logger::init();
 
     let connspec = std::env::var("DATABASE_PATH").unwrap_or("db.sqlite".to_string());
-    let manager = SqliteConnectionManager::file(connspec);
-    let pool: DbPool = r2d2::Pool::new(manager).expect("Failed to create pool to sqlite database.");
-    create_database(pool.get()?.borrow()).expect("Cannot create database schema");
+    let options = SqliteConnectOptions::new()
+        .filename(&connspec)
+        .create_if_missing(true);
+    let pool: DbPool = SqlitePool::connect_with(options)
+        .await
+        .expect("Failed to create pool to sqlite database.");
+    create_database(&pool)
+        .await
+        .expect("Cannot create database schema");
 
     let port = std::env::var("PORT").unwrap_or("8080".to_string());
     let videos_dir_path = std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string());
