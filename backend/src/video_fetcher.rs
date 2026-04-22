@@ -1,6 +1,7 @@
+use crate::database::Video;
+use sha2::Digest;
 use std::fs::File;
 use std::process::Command;
-use crate::database::Video;
 
 pub fn fetch_coub(
     coub_name: &str,

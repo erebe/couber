@@ -60,7 +60,8 @@ pub fn render_page(videos: &[Video]) -> Markup {
                     (render_video_grid(videos))
                 }
 
-                dialog #add-video-dialog {
+                dialog #add-video-dialog
+                    onclose="document.getElementById('video-url').value=''; document.getElementById('add-video-status').innerHTML='';" {
                     div class="dialog-header" {
                         h2 { "Add Video" }
                         button class="btn btn-secondary"
@@ -99,27 +100,54 @@ pub fn render_page(videos: &[Video]) -> Markup {
                             "×"
                         }
                     }
-                    form id="tags-form"
-                         hx-post="/update-tags"
-                         hx-target="#tags-status"
-                         hx-swap="innerHTML" {
-                        div class="dialog-body" {
-                            input type="hidden" name="name" id="tags-video-name";
-                            label for="tags-input" { "Tags (comma-separated)" }
-                            textarea name="tags" id="tags-input" {}
-                            div #tags-status class="status-msg" {}
+                    div class="dialog-body" {
+                        input type="hidden" id="tags-video-name";
+                        div class="tags-section" {
+                            label { "Current tags" }
+                            div #tags-chips class="chips-container" {}
                         }
-                        div class="dialog-footer" {
+                        div class="tags-section" {
+                            label { "Add tag" }
+                            div class="tag-add-row" {
+                                input #tags-new-input type="text" placeholder="Type a tag and press Enter…" autocomplete="off";
+                            }
+                        }
+                        div class="tags-section" {
+                            div class="suggest-header" {
+                                label { "Suggested tags" }
+                                div class="suggest-actions" {
+                                    button #select-all-btn type="button" class="btn btn-secondary btn-sm"
+                                        onclick="selectAllSuggested()" hidden {
+                                        "Select all"
+                                    }
+                                    button #suggest-btn type="button" class="btn btn-secondary btn-sm"
+                                        onclick="suggestTags()" {
+                                        "Suggest from image"
+                                    }
+                                }
+                            }
+                            div #suggested-chips class="chips-container" {}
+                            div #suggest-status class="status-msg" {}
+                        }
+                        div #tags-status class="status-msg" {}
+                    }
+                    div class="dialog-footer" {
+                        button type="button" class="btn btn-danger"
+                            onclick="deleteVideo()" {
+                            "Delete video"
+                        }
+                        div class="footer-right" {
                             button type="button" class="btn btn-secondary"
                                 onclick="document.getElementById('tags-dialog').close()" {
                                 "Close"
                             }
-                            button type="submit" class="btn" {
+                            button #save-tags-btn type="button" class="btn"
+                                onclick="saveTags()" {
                                 "Save Tags"
-                                span class="htmx-indicator" { "…" }
                             }
                         }
                     }
+                    div #delete-status class="status-msg" {}
                 }
 
                 script { (PreEscaped(JS)) }

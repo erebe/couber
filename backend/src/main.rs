@@ -1,29 +1,26 @@
 #[macro_use]
 extern crate log;
 
-use axum::extract::{Form, Path, State};
+use axum::extract::{Form, State};
 use axum::http::StatusCode;
-use axum::routing::{get, post, put};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
 use eyre::WrapErr;
 use maud::{html, Markup};
 use serde::Deserialize;
 use std::collections::HashSet;
-use std::fs::File;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 
-use crate::database::{create_database, Video};
-use crate::image_tagger::extract_image_tags;
+use crate::database::create_database;
+use crate::image_tagger::ImageTaggerService;
 use crate::page_renderer::render_page;
-use sha2::Digest;
+use crate::video_fetcher::{fetch_coub, fetch_video};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
-use crate::video_fetcher::{fetch_coub, fetch_video};
 
 mod database;
 mod image_tagger;
@@ -50,17 +47,29 @@ struct Cli {
     /// Port to listen on
     #[arg(long, env = "PORT", default_value = "8080")]
     port: u16,
+
+    /// OpenRouter API key
+    #[arg(long, env = "OPENROUTER_API_KEY")]
+    openrouter_api_key: String,
+
+    /// OpenRouter model to use for image tagging
+    #[arg(long, env = "OPENROUTER_MODEL", default_value = "openrouter/auto")]
+    openrouter_model: String,
+
+    /// OpenRouter API URL
+    #[arg(
+        long,
+        env = "OPENROUTER_API_URL",
+        default_value = "https://openrouter.ai/api/v1/chat/completions"
+    )]
+    openrouter_api_url: String,
 }
 
 struct App {
     db: DbPool,
     videos_path: PathBuf,
     scripts_path: PathBuf,
-}
-
-#[derive(serde::Deserialize)]
-struct InsertVideoPayload {
-    url: String,
+    image_tagger: ImageTaggerService,
 }
 
 async fn index(State(app): State<Arc<App>>) -> Result<Markup, (StatusCode, String)> {
@@ -105,7 +114,7 @@ async fn insert_video(State(app): State<Arc<App>>, Form(payload): Form<AddVideoF
         .videos_path
         .join(&video.name)
         .join(format!("{}.thumbnail.png", video.name));
-    let tags = extract_image_tags(&thumbnail_path).await;
+    let tags = app.image_tagger.extract_image_tags(&thumbnail_path).await;
     info!("Tags fetched for {}: {:?}", video.name, tags);
     video.tags.extend(tags.unwrap_or_default().into_iter());
     match database::insert_video(&app.db, &video).await {
@@ -124,28 +133,51 @@ async fn update_tags_form(
     State(app): State<Arc<App>>,
     Form(payload): Form<UpdateTagsForm>,
 ) -> Markup {
-    let tags: Vec<String> = payload
+    let tags: HashSet<String> = payload
         .tags
         .split(',')
         .map(|t| urlencoding::encode(t.trim()).into_owned())
         .filter(|t| !t.is_empty())
         .collect();
 
-    let thumbnail_path = app
-        .videos_path
-        .join(&payload.name)
-        .join(format!("{}.thumbnail.png", payload.name));
-    let ntags = extract_image_tags(&thumbnail_path).await;
-    info!("Tags fetched for {}: {:?}", payload.name, ntags);
-    let tags = tags
-        .into_iter()
-        .chain(ntags.unwrap_or_default())
-        .collect::<HashSet<String>>();
-
     match database::set_tags(&app.db, &payload.name, &tags).await {
         Ok(_) => html! { span class="status-success" { "Tags saved!" } },
         Err(e) => html! { span class="status-error" { "Error: " (e) } },
     }
+}
+
+#[derive(Deserialize)]
+struct DeleteVideoForm {
+    name: String,
+}
+
+async fn delete_video(State(app): State<Arc<App>>, Form(payload): Form<DeleteVideoForm>) -> Markup {
+    match database::delete_video(&app.db, &payload.name).await {
+        Ok(_) => html! { span class="status-success" { "Video deleted!" } },
+        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+    }
+}
+
+#[derive(Deserialize)]
+struct SuggestTagsQuery {
+    name: String,
+}
+
+async fn suggest_tags(
+    State(app): State<Arc<App>>,
+    axum::extract::Query(params): axum::extract::Query<SuggestTagsQuery>,
+) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+    let thumbnail_path = app
+        .videos_path
+        .join(&params.name)
+        .join(format!("{}.thumbnail.png", params.name));
+    let tags = app
+        .image_tagger
+        .extract_image_tags(&thumbnail_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let decoded: Vec<String> = tags.into_iter().map(|t| decode_tags(&t)).collect();
+    Ok(Json(decoded))
 }
 
 fn decode_tags<T: AsRef<str>>(tags: T) -> String {
@@ -194,17 +226,25 @@ async fn main() -> eyre::Result<()> {
     info!("videos_path: {}", videos_path.display());
     info!("scripts_path: {}", scripts_path.display());
 
+    let image_tagger = ImageTaggerService::new(
+        cli.openrouter_api_key,
+        cli.openrouter_model,
+        cli.openrouter_api_url,
+    );
     let app = Arc::new(App {
         db: pool,
         videos_path,
         scripts_path,
+        image_tagger,
     });
 
     let router = Router::new()
         .route("/", get(index))
         .route("/add-video", post(insert_video))
         .route("/update-tags", post(update_tags_form))
+        .route("/delete-video", post(delete_video))
         .route("/api/tags", get(list_tags))
+        .route("/api/suggest-tags", get(suggest_tags))
         .nest_service("/videos", ServeDir::new(app.videos_path.clone()))
         .with_state(app);
 

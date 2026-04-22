@@ -79,7 +79,9 @@ select:focus { outline: 2px solid var(--accent); }
 dialog {
     background: var(--header-bg); color: var(--text);
     border: 1px solid var(--border); border-radius: 10px;
-    padding: 0; width: 440px; max-width: 95vw;
+    padding: 0; width: 800px; max-width: 95vw;
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    margin: 0;
 }
 dialog::backdrop { background: rgba(0,0,0,0.65); }
 .dialog-header {
@@ -104,5 +106,38 @@ textarea { height: 120px; resize: vertical; font-family: inherit; }
 .status-msg { min-height: 20px; font-size: 13px; margin-top: 10px; }
 .status-success { color: #5cb85c; }
 .status-error { color: #d9534f; }
+.status-loading { color: var(--text-muted); }
 .htmx-indicator { display: none; margin-left: 6px; }
 .htmx-request .htmx-indicator { display: inline; }
+
+/* Tags modal */
+.tags-section { margin-bottom: 16px; }
+.tags-section:last-child { margin-bottom: 0; }
+.tag-add-row { display: flex; gap: 8px; }
+.tag-add-row input { flex: 1; }
+.suggest-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.suggest-header label { margin-bottom: 0; }
+.suggest-actions { display: flex; gap: 6px; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: #8b2020; }
+.btn-danger:hover { background: #a52828; }
+.chips-container { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+.chip {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; cursor: pointer; user-select: none;
+    transition: opacity 0.15s, background 0.15s;
+}
+.chip-removable {
+    background: var(--accent); color: white;
+}
+.chip-removable::after { content: ' ×'; opacity: 0.7; margin-left: 2px; }
+.chip-removable:hover { background: #c0392b; }
+.chip-suggest {
+    background: #2a2a4a; color: var(--text);
+    border: 1px solid var(--border);
+}
+.chip-suggest:hover { background: #3a3a6a; }
+.chip-added { background: #2d5a2d !important; color: #7ec87e !important; cursor: default; }
+.dialog-footer { justify-content: space-between; }
+.footer-right { display: flex; gap: 8px; }

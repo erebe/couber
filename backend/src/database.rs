@@ -69,6 +69,14 @@ pub async fn set_tags(
     Ok(())
 }
 
+pub async fn delete_video(pool: &SqlitePool, video_name: &str) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM videos WHERE name = ?")
+        .bind(video_name)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn add_tag(pool: &SqlitePool, video_name: &str, tags: &Vec<String>) -> sqlx::Result<()> {
     sqlx::query(
         r#"

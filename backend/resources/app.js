@@ -1,38 +1,204 @@
-function openTagsDialog(name, tags) {
+// ── Tags modal state ──────────────────────────────────────────────────────────
+
+let currentTags = [];   // encoded tags currently on the video
+let videoName   = '';   // name of the video being edited
+
+function openTagsDialog(name, tagsStr) {
+    videoName = name;
+    currentTags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+
     document.getElementById('tags-video-name').value = name;
-    document.getElementById('tags-input').value = tags;
-    document.getElementById('tags-status').innerHTML = '';
+    document.getElementById('tags-status').innerHTML   = '';
+    document.getElementById('suggest-status').innerHTML = '';
+    document.getElementById('delete-status').innerHTML  = '';
+    document.getElementById('suggested-chips').innerHTML = '';
+    document.getElementById('tags-new-input').value      = '';
+    renderCurrentTags();
     document.getElementById('tags-dialog').showModal();
 }
 
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const video = document.createElement('video');
-      const image = entry.target.querySelector('img');
-      video.src = image.dataset.src;
-      video.poster = image.dataset.poster;
-      video.type = 'video/mp4';
-      video.controls = true;
-      image.replaceWith(video);
+function renderCurrentTags() {
+    const container = document.getElementById('tags-chips');
+    container.innerHTML = '';
+    currentTags.forEach(tag => {
+        const chip = makeChip(decodeURIComponent(tag), () => {
+            currentTags = currentTags.filter(t => t !== tag);
+            renderCurrentTags();
+        }, 'chip chip-removable');
+        container.appendChild(chip);
+    });
+}
 
-      const edit_btn = entry.target.querySelector(".video-edit-btn");
-      edit_btn.addEventListener("click", () => {
-        openTagsDialog(image.dataset.videoName, entry.target.dataset.tags);
-      });
+function makeChip(label, onClick, className) {
+    const chip = document.createElement('span');
+    chip.className = className;
+    chip.textContent = label;
+    chip.addEventListener('click', onClick);
+    return chip;
+}
 
-     const tags = entry.target.querySelector(".video-tags");
-     tags.textContent = entry.target.dataset.tags;
-
-      entry.target.classList.replace("invisible", "visible");
-      observer.unobserve(entry.target);
+// Add a tag from the text input on Enter
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('tags-new-input');
+    if (input) {
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = input.value.trim();
+                if (val) {
+                    const encoded = encodeURIComponent(val);
+                    if (!currentTags.includes(encoded)) {
+                        currentTags.push(encoded);
+                        renderCurrentTags();
+                    }
+                    input.value = '';
+                }
+            }
+        });
     }
-  });
 });
 
+// ── Suggest tags ──────────────────────────────────────────────────────────────
+
+let suggestedTags = [];  // last batch of suggested tags
+
+async function suggestTags() {
+    const statusEl   = document.getElementById('suggest-status');
+    const container  = document.getElementById('suggested-chips');
+    const btn        = document.getElementById('suggest-btn');
+    const selectAll  = document.getElementById('select-all-btn');
+
+    container.innerHTML = '';
+    selectAll.hidden = true;
+    suggestedTags = [];
+    statusEl.innerHTML = '<span class="status-loading">Fetching suggestions…</span>';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(`/api/suggest-tags?name=${encodeURIComponent(videoName)}`);
+        if (!res.ok) throw new Error(await res.text());
+        const tags = await res.json();
+        statusEl.innerHTML = '';
+        suggestedTags = tags;
+        tags.forEach(tag => {
+            const chip = makeChip(tag, () => addSuggestedChip(tag, chip), 'chip chip-suggest');
+            container.appendChild(chip);
+        });
+        if (tags.length === 0) {
+            statusEl.innerHTML = '<span class="status-error">No suggestions returned.</span>';
+        } else {
+            selectAll.hidden = false;
+        }
+    } catch (e) {
+        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function addSuggestedChip(tag, chip) {
+    const encoded = encodeURIComponent(tag);
+    if (!currentTags.includes(encoded)) {
+        currentTags.push(encoded);
+        renderCurrentTags();
+    }
+    chip.classList.add('chip-added');
+}
+
+function selectAllSuggested() {
+    const container = document.getElementById('suggested-chips');
+    suggestedTags.forEach((tag, i) => {
+        const chip = container.children[i];
+        if (chip) addSuggestedChip(tag, chip);
+    });
+}
+
+// ── Save tags ─────────────────────────────────────────────────────────────────
+
+async function saveTags() {
+    const statusEl = document.getElementById('tags-status');
+    statusEl.innerHTML = '';
+
+    const tagsDecoded = currentTags.map(t => decodeURIComponent(t)).join(',');
+    const body = new URLSearchParams({ name: videoName, tags: tagsDecoded });
+
+    try {
+        const res = await fetch('/update-tags', { method: 'POST', body });
+        const html = await res.text();
+        statusEl.innerHTML = html;
+
+        // Update the video card in the page
+        const card = [...document.querySelectorAll('.video-card')]
+            .find(c => c.dataset.tags !== undefined &&
+                       c.querySelector('video')?.dataset?.videoName === videoName ||
+                       c.querySelector('img')?.dataset?.videoName === videoName);
+        if (card) {
+            card.dataset.tags = tagsDecoded;
+            const tagsEl = card.querySelector('.video-tags');
+            if (tagsEl) tagsEl.textContent = tagsDecoded;
+        }
+    } catch (e) {
+        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+    }
+}
+
+// ── Delete video ──────────────────────────────────────────────────────────────
+
+async function deleteVideo() {
+    if (!confirm(`Delete video "${videoName}"? This cannot be undone.`)) return;
+
+    const statusEl = document.getElementById('delete-status');
+    statusEl.innerHTML = '';
+
+    const body = new URLSearchParams({ name: videoName });
+    try {
+        const res = await fetch('/delete-video', { method: 'POST', body });
+        const html = await res.text();
+        statusEl.innerHTML = html;
+
+        if (res.ok) {
+            // Remove the card from the page
+            const card = [...document.querySelectorAll('.video-card')]
+                .find(c =>
+                    c.querySelector('video, img')?.dataset?.videoName === videoName);
+            if (card) card.remove();
+            setTimeout(() => document.getElementById('tags-dialog').close(), 800);
+        }
+    } catch (e) {
+        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+    }
+}
+
+// ── Video card lazy-loading & tag filtering ───────────────────────────────────
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const image = entry.target.querySelector('img');
+            const video = document.createElement('video');
+            video.src = image.dataset.src;
+            video.poster = image.dataset.poster;
+            video.dataset.videoName = image.dataset.videoName;
+            video.type = 'video/mp4';
+            video.controls = true;
+            image.replaceWith(video);
+
+            const editBtn = entry.target.querySelector('.video-edit-btn');
+            editBtn.addEventListener('click', () => {
+                openTagsDialog(image.dataset.videoName, entry.target.dataset.tags);
+            });
+
+            const tagsEl = entry.target.querySelector('.video-tags');
+            tagsEl.textContent = entry.target.dataset.tags;
+
+            entry.target.classList.replace('invisible', 'visible');
+            observer.unobserve(entry.target);
+        }
+    });
+});
 
 // Tag autocomplete + dynamic filtering
-(function() {
+(function () {
     function filterVideos(tag) {
         document.querySelectorAll('.video-card').forEach(card => {
             if (!tag) { card.style.display = ''; return; }
@@ -53,9 +219,7 @@ const observer = new IntersectionObserver((entries) => {
         },
         debounce: 300,
         resultItem: { highlight: true },
-        resultsList: {
-            maxResults: 10,
-        },
+        resultsList: { maxResults: 10 },
         events: {
             input: {
                 selection: (event) => {
@@ -70,7 +234,5 @@ const observer = new IntersectionObserver((entries) => {
         }
     });
 
-    document.querySelectorAll('.video-card').forEach(card => {
-        observer.observe(card)
-    });
+    document.querySelectorAll('.video-card').forEach(card => observer.observe(card));
 })();
