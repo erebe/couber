@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
+use std::collections::HashSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Video {
@@ -20,11 +20,10 @@ pub async fn create_database(pool: &SqlitePool) -> sqlx::Result<()> {
 }
 
 pub async fn list_videos(pool: &SqlitePool) -> sqlx::Result<Vec<Video>> {
-    let rows = sqlx::query(
-        "SELECT name, url, tags, original, thumbnail, creation_timestamp FROM videos",
-    )
-    .fetch_all(pool)
-    .await?;
+    let rows =
+        sqlx::query("SELECT name, url, tags, original, thumbnail, creation_timestamp FROM videos")
+            .fetch_all(pool)
+            .await?;
 
     let videos = rows
         .into_iter()
@@ -48,7 +47,7 @@ pub async fn insert_video(pool: &SqlitePool, video: &Video) -> sqlx::Result<()> 
     sqlx::query("INSERT OR REPLACE INTO videos (name, url, tags, original, thumbnail, creation_timestamp) VALUES (?,?,?,?,?,?)")
         .bind(&video.name)
         .bind(&video.url)
-        .bind(serde_json::to_string(&video.tags).unwrap())
+        .bind(serde_json::to_string(&video.tags).unwrap_or_default())
         .bind(&video.original)
         .bind(&video.thumbnail)
         .bind(video.creation_timestamp as i64)
@@ -70,11 +69,7 @@ pub async fn set_tags(
     Ok(())
 }
 
-pub async fn add_tag(
-    pool: &SqlitePool,
-    video_name: &str,
-    tags: &Vec<String>,
-) -> sqlx::Result<()> {
+pub async fn add_tag(pool: &SqlitePool, video_name: &str, tags: &Vec<String>) -> sqlx::Result<()> {
     sqlx::query(
         r#"
         UPDATE videos

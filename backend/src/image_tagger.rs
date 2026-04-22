@@ -1,8 +1,7 @@
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use serde_with::{json::JsonString, serde_as};
 use std::path::Path;
-use serde::de::DeserializeOwned;
-use serde_with::{serde_as, json::JsonString};
 
 const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -28,14 +27,13 @@ struct Message {
 struct ChatRequest {
     model: String,
     stream: bool,
-    messages: Vec<Message>
+    messages: Vec<Message>,
 }
 
 #[derive(Deserialize)]
 struct Choice {
     message: ResponseMessage,
 }
-
 
 #[serde_as]
 #[derive(Deserialize)]
@@ -58,8 +56,7 @@ pub async fn extract_image_tags(image_path: &Path) -> eyre::Result<Vec<String>> 
     let api_key = std::env::var("OPENROUTER_API_KEY")
         .map_err(|_| eyre::eyre!("OPENROUTER_API_KEY environment variable is not set"))?;
 
-    let model = std::env::var("OPENROUTER_MODEL")
-        .unwrap_or_else(|_| "openrouter/auto".to_string());
+    let model = std::env::var("OPENROUTER_MODEL").unwrap_or_else(|_| "openrouter/auto".to_string());
 
     let image_bytes = std::fs::read(image_path)?;
     let mime_type = mime_type_from_path(image_path);

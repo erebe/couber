@@ -45,7 +45,7 @@ fn fetch_coub(coub_name: &str, output_path: &str) -> eyre::Result<Video> {
 fn fetch_video(video_url: &str, output_path: &str) -> eyre::Result<Video> {
     fn calculate_hash(t: &str) -> String {
         let hash = sha2::Sha256::digest(t.as_bytes());
-        let mut hash = format!("{:x}", hash);
+        let mut hash = hex::encode(hash);
         hash.truncate(10);
         hash
     }
@@ -94,14 +94,18 @@ async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoFo
     })
     .await;
 
-
     let mut video = match fetch_result {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => return html! { span class="status-error" { "Error: " (e) } },
         Err(e) => return html! { span class="status-error" { "Error: " (e) } },
     };
 
-    let tags = extract_image_tags(&std::path::Path::new(&video.url)).await.unwrap_or_default();
+    let tags = extract_image_tags(&std::path::Path::new(
+        &video.thumbnail.trim_start_matches("/"),
+    ))
+    .await
+    .unwrap_or_default();
+    info!("Tags fetched for {}: {:?}", video.name, tags);
     video.tags.extend(tags);
     match database::insert_video(&db, &video).await {
         Ok(_) => html! { span class="status-success" { "Video added successfully!" } },
@@ -126,7 +130,10 @@ async fn update_tags_form(State(db): State<DbPool>, Form(payload): Form<UpdateTa
     let thumbmail_path = format!("videos/{}/{}.thumbnail.png", payload.name, payload.name);
     let ntags = extract_image_tags(&std::path::Path::new(&thumbmail_path)).await;
     info!("Tags fetched for {}: {:?}", payload.name, ntags);
-    let tags = tags.into_iter().chain(ntags.unwrap_or_default()).collect::<HashSet<String>>();
+    let tags = tags
+        .into_iter()
+        .chain(ntags.unwrap_or_default())
+        .collect::<HashSet<String>>();
 
     match database::set_tags(&db, &payload.name, &tags).await {
         Ok(_) => html! { span class="status-success" { "Tags saved!" } },
