@@ -100,13 +100,15 @@ async fn add_video_form(State(db): State<DbPool>, Form(payload): Form<AddVideoFo
         Err(e) => return html! { span class="status-error" { "Error: " (e) } },
     };
 
-    let tags = extract_image_tags(&std::path::Path::new(
-        &video.thumbnail.trim_start_matches("/"),
-    ))
-    .await
-    .unwrap_or_default();
+    let thumbnail_path = format!(
+        "{}/{}/{}.thumbnail.png",
+        &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
+        video.name,
+        video.name
+    );
+    let tags = extract_image_tags(&std::path::Path::new(&thumbnail_path)).await;
     info!("Tags fetched for {}: {:?}", video.name, tags);
-    video.tags.extend(tags);
+    video.tags.extend(tags.unwrap_or_default().into_iter());
     match database::insert_video(&db, &video).await {
         Ok(_) => html! { span class="status-success" { "Video added successfully!" } },
         Err(e) => html! { span class="status-error" { "Error: " (e) } },
@@ -127,8 +129,13 @@ async fn update_tags_form(State(db): State<DbPool>, Form(payload): Form<UpdateTa
         .filter(|t| !t.is_empty())
         .collect();
 
-    let thumbmail_path = format!("videos/{}/{}.thumbnail.png", payload.name, payload.name);
-    let ntags = extract_image_tags(&std::path::Path::new(&thumbmail_path)).await;
+    let thumbnail_path = format!(
+        "{}/{}/{}.thumbnail.png",
+        &std::env::var("VIDEOS_PATH").unwrap_or("./videos/".to_string()),
+        payload.name,
+        payload.name
+    );
+    let ntags = extract_image_tags(&std::path::Path::new(&thumbnail_path)).await;
     info!("Tags fetched for {}: {:?}", payload.name, ntags);
     let tags = tags
         .into_iter()

@@ -47,7 +47,7 @@ pub async fn insert_video(pool: &SqlitePool, video: &Video) -> sqlx::Result<()> 
     sqlx::query("INSERT OR REPLACE INTO videos (name, url, tags, original, thumbnail, creation_timestamp) VALUES (?,?,?,?,?,?)")
         .bind(&video.name)
         .bind(&video.url)
-        .bind(serde_json::to_string(&video.tags).unwrap_or_default())
+        .bind(serde_json::to_string(&video.tags.iter().collect::<HashSet<_>>()).unwrap_or_default())
         .bind(&video.original)
         .bind(&video.thumbnail)
         .bind(video.creation_timestamp as i64)
