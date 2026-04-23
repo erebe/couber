@@ -7,13 +7,8 @@ video_url="https://coub.com/view/${video_name}"
 
 loops=50
 
-function cleanup() {
-  rm -rf "${video_name}"
-}
-
 rm -rf "${video_name}"
 mkdir "${video_name}"
-trap "cleanup $? $LINENO" EXIT INT TERM
 
 
 yt-dlp -o ${video_path}.mp4 ${video_url}

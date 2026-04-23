@@ -4,13 +4,8 @@ set -xe
 video_url=${1}
 video_name=${2}
 
-function cleanup() {
-  rm -rf "${video_name}"
-}
-
 rm -rf "${video_name}"
 mkdir "${video_name}"
-trap "cleanup $? $LINENO" EXIT INT TERM
 
 video_path=${video_name}/${video_name}
 
