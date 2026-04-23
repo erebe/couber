@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 use axum::extract::{Form, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
@@ -12,6 +9,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::info;
 
 use crate::database::create_database;
 use crate::image_tagger::ImageTaggerService;
@@ -22,6 +20,7 @@ use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::task::spawn_blocking;
 use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
 
 mod database;
 mod image_tagger;
@@ -211,10 +210,13 @@ async fn list_tags(
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
-    }
-    env_logger::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("INFO,tower_http=DEBUG")),
+        )
+        .with_ansi(true)
+        .init();
 
     let cli = Cli::parse();
 
@@ -258,6 +260,7 @@ async fn main() -> eyre::Result<()> {
         .route("/api/tags", get(list_tags))
         .route("/api/suggest-tags", get(suggest_tags))
         .nest_service("/videos", ServeDir::new(app.videos_path.clone()))
+        .layer(TraceLayer::new_for_http())
         .with_state(app);
 
     let listener = tokio::net::TcpListener::bind(format!("[::]:{}", cli.port)).await?;

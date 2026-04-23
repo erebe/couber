@@ -3,6 +3,7 @@ use sha2::Digest;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::Command;
+use tracing::info;
 
 pub struct VideoFetcher {
     scripts_path: PathBuf,
