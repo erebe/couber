@@ -2,21 +2,17 @@
 
 set -e
 video_name=${1}
-mkdir "${video_name}"
 video_path="${video_name}/${video_name}"
 video_url="https://coub.com/view/${video_name}"
-output="${2}"
 
 loops=50
 
 function cleanup() {
-  rm -f ${video_path}.{mp4.avi,txt} 
-  if [ "$1" != "0" ]; then
-    echo "Error $1 occurred on $2"
-    rm -rf "${video_name}"
-  fi
+  rm -rf "${video_name}"
 }
 
+rm -rf "${video_name}"
+mkdir "${video_name}"
 trap "cleanup $? $LINENO" EXIT INT TERM
 
 
@@ -48,5 +44,3 @@ cat <<EOF > ${video_path}.js
 EOF
 
 cleanup 0 ''
-rm -rf "${2}/${video_name}"
-mv "${video_name}" "${2}"
