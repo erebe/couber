@@ -16,7 +16,8 @@ use std::sync::Arc;
 use crate::database::create_database;
 use crate::image_tagger::ImageTaggerService;
 use crate::page_renderer::render_page;
-use crate::video_fetcher::{fetch_coub, fetch_video};
+use crate::video_fetcher::VideoFetcher;
+use crate::video_store::VideoStore;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::task::spawn_blocking;
@@ -26,6 +27,7 @@ mod database;
 mod image_tagger;
 mod page_renderer;
 mod video_fetcher;
+mod video_store;
 
 type DbPool = SqlitePool;
 
@@ -68,8 +70,9 @@ struct Cli {
 struct App {
     db: DbPool,
     videos_path: PathBuf,
-    scripts_path: PathBuf,
     image_tagger: ImageTaggerService,
+    video_fetcher: VideoFetcher,
+    video_store: VideoStore,
 }
 
 async fn index(State(app): State<Arc<App>>) -> Result<Markup, (StatusCode, String)> {
@@ -91,18 +94,20 @@ async fn insert_video(State(app): State<Arc<App>>, Form(payload): Form<AddVideoF
         return html! { span class="status-error" { "Please enter a URL." } };
     }
 
-    let videos_path = app.videos_path.clone();
-    let scripts_path = app.scripts_path.clone();
-    let fetch_result = spawn_blocking(move || {
-        let video = if url.starts_with("https://coub.com") {
-            let coub_name = url.split('/').next_back().unwrap_or_default().to_string();
-            fetch_coub(&coub_name, &videos_path, &scripts_path)?
-        } else {
-            fetch_video(&url, &videos_path, &scripts_path)?
-        };
-        Ok::<_, eyre::Error>(video)
-    })
-    .await;
+    let fetch_result = {
+        let app = app.clone();
+        spawn_blocking(move || {
+            let (video, video_dir) = if url.starts_with("https://coub.com") {
+                let coub_name = url.split('/').next_back().unwrap_or_default().to_string();
+                app.video_fetcher.fetch_coub(&coub_name)?
+            } else {
+                app.video_fetcher.fetch_video(&url)?
+            };
+            app.video_store.add(&video.name, &video_dir)?;
+            Ok::<_, eyre::Error>(video)
+        })
+        .await
+    };
 
     let mut video = match fetch_result {
         Ok(Ok(v)) => v,
@@ -152,6 +157,10 @@ struct DeleteVideoForm {
 }
 
 async fn delete_video(State(app): State<Arc<App>>, Form(payload): Form<DeleteVideoForm>) -> Markup {
+    if let Err(e) = app.video_store.delete(&payload.name) {
+        return html! { span class="status-error" { "Error: " (e) } };
+    };
+
     match database::delete_video(&app.db, &payload.name).await {
         Ok(_) => html! { span class="status-success" { "Video deleted!" } },
         Err(e) => html! { span class="status-error" { "Error: " (e) } },
@@ -226,6 +235,8 @@ async fn main() -> eyre::Result<()> {
     info!("videos_path: {}", videos_path.display());
     info!("scripts_path: {}", scripts_path.display());
 
+    let video_store = VideoStore::new(videos_path.clone());
+    let video_fetcher = VideoFetcher::new(scripts_path.clone());
     let image_tagger = ImageTaggerService::new(
         cli.openrouter_api_key,
         cli.openrouter_model,
@@ -234,8 +245,9 @@ async fn main() -> eyre::Result<()> {
     let app = Arc::new(App {
         db: pool,
         videos_path,
-        scripts_path,
         image_tagger,
+        video_fetcher,
+        video_store,
     });
 
     let router = Router::new()

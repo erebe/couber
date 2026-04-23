@@ -1,52 +1,52 @@
 use crate::database::Video;
 use sha2::Digest;
 use std::fs::File;
+use std::path::PathBuf;
 use std::process::Command;
 
-pub fn fetch_coub(
-    coub_name: &str,
-    output_path: &std::path::Path,
-    scripts_path: &std::path::Path,
-) -> eyre::Result<Video> {
-    let mut cmd = Command::new("./coub.sh");
-    cmd.args([coub_name])
-        .arg(output_path)
-        .current_dir(scripts_path);
-    info!("Coub fetched: {:?}", cmd);
-    cmd.output()?;
-    let video_file = File::open(
-        output_path
-            .join(coub_name)
-            .join(format!("{}.js", coub_name)),
-    )?;
-    let video: Video = serde_json::from_reader(video_file)?;
-    Ok(video)
+pub struct VideoFetcher {
+    scripts_path: PathBuf,
 }
 
-pub fn fetch_video(
-    video_url: &str,
-    output_path: &std::path::Path,
-    scripts_path: &std::path::Path,
-) -> eyre::Result<Video> {
-    fn calculate_hash(t: &str) -> String {
-        let hash = sha2::Sha256::digest(t.as_bytes());
-        let mut hash = hex::encode(hash);
-        hash.truncate(10);
-        hash
+impl VideoFetcher {
+    pub fn new(scripts_path: PathBuf) -> Self {
+        Self { scripts_path }
     }
-    let video_name = calculate_hash(video_url);
-    let mut cmd = Command::new("./generic_vids.sh");
-    cmd.arg(video_url)
-        .arg(output_path)
-        .arg(&video_name)
-        .current_dir(scripts_path);
-    info!("Video fetched: {:?}", cmd);
-    cmd.output()?;
-    let video_file = File::open(
-        output_path
-            .join(&video_name)
-            .join(format!("{}.js", video_name)),
-    )?;
-    let video: Video = serde_json::from_reader(video_file)?;
-    Ok(video)
+
+    pub fn fetch_coub(&self, coub_name: &str) -> eyre::Result<(Video, PathBuf)> {
+        let mut cmd = Command::new("./coub.sh");
+        cmd.args([coub_name]).current_dir(&self.scripts_path);
+        info!("Coub fetched: {:?}", cmd);
+        cmd.output()?;
+        let video_file = File::open(
+            self.scripts_path
+                .join(coub_name)
+                .join(format!("{}.js", coub_name)),
+        )?;
+        let video: Video = serde_json::from_reader(video_file)?;
+        Ok((video, self.scripts_path.join(coub_name)))
+    }
+
+    pub fn fetch_video(&self, video_url: &str) -> eyre::Result<(Video, PathBuf)> {
+        fn calculate_hash(t: &str) -> String {
+            let hash = sha2::Sha256::digest(t.as_bytes());
+            let mut hash = hex::encode(hash);
+            hash.truncate(10);
+            hash
+        }
+        let video_name = calculate_hash(video_url);
+        let mut cmd = Command::new("./generic_vids.sh");
+        cmd.arg(video_url)
+            .arg(&video_name)
+            .current_dir(&self.scripts_path);
+        info!("Video fetched: {:?}", cmd);
+        cmd.output()?;
+        let video_file = File::open(
+            self.scripts_path
+                .join(&video_name)
+                .join(format!("{}.js", video_name)),
+        )?;
+        let video: Video = serde_json::from_reader(video_file)?;
+        Ok((video, self.scripts_path.join(&video_name)))
+    }
 }

@@ -17,7 +17,7 @@ fn render_video_card(video: &Video) -> Markup {
             img data-poster=(video.thumbnail) data-src=(video.url) data-video-name=(video.name) loading="lazy" { }
             div class="video-overlay" {
                 span class="video-tags" {}
-                button class="video-edit-btn" { "Edit tags" }
+                button class="video-edit-btn" { "Edit" }
             }
         }
     }
