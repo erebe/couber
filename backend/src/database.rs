@@ -27,16 +27,13 @@ pub async fn list_videos(pool: &SqlitePool) -> sqlx::Result<Vec<Video>> {
 
     let videos = rows
         .into_iter()
-        .map(|row| {
-            let tags_str: String = row.get("tags");
-            Video {
-                name: row.get("name"),
-                url: row.get("url"),
-                tags: serde_json::from_str(&tags_str).unwrap_or_default(),
-                original: row.get("original"),
-                thumbnail: row.get("thumbnail"),
-                creation_timestamp: row.get::<i64, _>("creation_timestamp") as u32,
-            }
+        .map(|row| Video {
+            name: row.get("name"),
+            url: row.get("url"),
+            tags: serde_json::from_str(row.get("tags")).unwrap_or_default(),
+            original: row.get("original"),
+            thumbnail: row.get("thumbnail"),
+            creation_timestamp: row.get::<i64, _>("creation_timestamp") as u32,
         })
         .collect();
 
@@ -77,33 +74,9 @@ pub async fn delete_video(pool: &SqlitePool, video_name: &str) -> sqlx::Result<(
     Ok(())
 }
 
-pub async fn add_tag(pool: &SqlitePool, video_name: &str, tags: &Vec<String>) -> sqlx::Result<()> {
-    sqlx::query(
-        r#"
-        UPDATE videos
-        SET tags = (
-            SELECT JSON_GROUP_ARRAY(DISTINCT value)
-            FROM (
-                SELECT value
-                FROM json_each(videos.tags)
-                where name = ?
-                UNION
-                SELECT value
-                FROM json_each(?)
-            )
-        ) where name = ?"#,
-    )
-    .bind(video_name)
-    .bind(serde_json::to_string(tags).unwrap_or_default())
-    .bind(video_name)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::database::{add_tag, create_database, insert_video, list_videos, Video};
+    use crate::database::{create_database, insert_video, list_videos, Video};
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::SqlitePool;
 
@@ -161,25 +134,5 @@ mod tests {
             list_videos(&pool).await.expect("cannot list videos").len(),
             1
         );
-    }
-
-    #[tokio::test]
-    async fn test_add_tags() {
-        let (pool, video) = setup().await;
-        insert_video(&pool, &video)
-            .await
-            .expect("cannot insert video");
-
-        add_tag(
-            &pool,
-            video.name.as_str(),
-            &vec![String::from("tags"), String::from("tags")],
-        )
-        .await
-        .expect("cannot add tag");
-        let vids = list_videos(&pool).await.expect("cannot list videos");
-        assert_eq!(vids.len(), 1);
-        assert_eq!(vids.first().unwrap().tags.len(), 1);
-        assert_eq!(vids.first().unwrap().tags.first().unwrap(), "tags");
     }
 }

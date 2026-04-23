@@ -1,17 +1,11 @@
 use crate::database::Video;
-use crate::decode_tags;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 
 const CSS: &str = include_str!("../resources/style.css");
 const JS: &str = include_str!("../resources/app.js");
 
 fn render_video_card(video: &Video) -> Markup {
-    let tags = video
-        .tags
-        .iter()
-        .map(decode_tags)
-        .collect::<Vec<_>>()
-        .join(", ");
+    let tags = video.tags.join(", ");
     html! {
         div class="video-card invisible" data-tags=(tags) {
             img data-poster=(video.thumbnail) data-src=(video.url) data-video-name=(video.name) loading="lazy" { }

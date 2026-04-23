@@ -140,7 +140,7 @@ async fn update_tags_form(
     let tags: HashSet<String> = payload
         .tags
         .split(',')
-        .map(|t| urlencoding::encode(t.trim()).into_owned())
+        .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
         .collect();
 
@@ -201,14 +201,7 @@ async fn suggest_tags(
         .extract_image_tags(&thumbnail_path)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let decoded: Vec<String> = tags.into_iter().map(|t| decode_tags(&t)).collect();
-    Ok(Json(decoded))
-}
-
-fn decode_tags<T: AsRef<str>>(tags: T) -> String {
-    urlencoding::decode(tags.as_ref())
-        .unwrap_or_default()
-        .into_owned()
+    Ok(Json(tags))
 }
 
 async fn list_tags(
@@ -217,11 +210,7 @@ async fn list_tags(
     let videos = database::list_videos(&app.db)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let tags: HashSet<String> = videos
-        .into_iter()
-        .flat_map(|v| v.tags)
-        .map(decode_tags)
-        .collect();
+    let tags: HashSet<String> = videos.into_iter().flat_map(|v| v.tags).collect();
     Ok(Json(tags))
 }
 

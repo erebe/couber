@@ -22,7 +22,7 @@ function renderCurrentTags() {
     const container = document.getElementById('tags-chips');
     container.innerHTML = '';
     currentTags.forEach(tag => {
-        const chip = makeChip(decodeURIComponent(tag), () => {
+        const chip = makeChip(tag, () => {
             currentTags = currentTags.filter(t => t !== tag);
             renderCurrentTags();
         }, 'chip chip-removable');
@@ -47,9 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const val = input.value.trim();
                 if (val) {
-                    const encoded = encodeURIComponent(val);
-                    if (!currentTags.includes(encoded)) {
-                        currentTags.push(encoded);
+                    if (!currentTags.includes(val)) {
+                        currentTags.push(val);
                         renderCurrentTags();
                     }
                     input.value = '';
@@ -82,7 +81,7 @@ async function normalizeTags() {
         });
         if (!res.ok) throw new Error(await res.text());
         const normalized = await res.json();
-        currentTags = normalized.map(t => encodeURIComponent(t));
+        currentTags = normalized;
         renderCurrentTags();
         statusEl.innerHTML = '<span class="status-success">Tags normalized.</span>';
     } catch (e) {
@@ -131,9 +130,8 @@ async function suggestTags() {
 }
 
 function addSuggestedChip(tag, chip) {
-    const encoded = encodeURIComponent(tag);
-    if (!currentTags.includes(encoded)) {
-        currentTags.push(encoded);
+    if (!currentTags.includes(tag)) {
+        currentTags.push(tag);
         renderCurrentTags();
     }
     chip.classList.add('chip-added');
@@ -153,8 +151,7 @@ async function saveTags() {
     const statusEl = document.getElementById('tags-status');
     statusEl.innerHTML = '';
 
-    const tagsDecoded = currentTags.map(t => decodeURIComponent(t)).join(',');
-    const body = new URLSearchParams({ name: videoName, tags: tagsDecoded });
+    const body = new URLSearchParams({ name: videoName, tags: currentTags.join(',') });
 
     try {
         const res = await fetch('/update-tags', { method: 'POST', body });

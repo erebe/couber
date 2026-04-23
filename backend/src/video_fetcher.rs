@@ -24,7 +24,12 @@ impl VideoFetcher {
                 .join(coub_name)
                 .join(format!("{}.js", coub_name)),
         )?;
-        let video: Video = serde_json::from_reader(video_file)?;
+        let mut video: Video = serde_json::from_reader(video_file)?;
+        video.tags = video
+            .tags
+            .iter()
+            .map(|t| urlencoding::decode(&t).unwrap_or_default().to_lowercase())
+            .collect::<Vec<_>>();
         Ok((video, self.scripts_path.join(coub_name)))
     }
 
