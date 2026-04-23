@@ -8,10 +8,11 @@ function openTagsDialog(name, tagsStr) {
     currentTags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
 
     document.getElementById('tags-video-name').value = name;
-    document.getElementById('tags-status').innerHTML   = '';
-    document.getElementById('suggest-status').innerHTML = '';
-    document.getElementById('delete-status').innerHTML  = '';
-    document.getElementById('suggested-chips').innerHTML = '';
+    document.getElementById('tags-status').innerHTML      = '';
+    document.getElementById('suggest-status').innerHTML   = '';
+    document.getElementById('normalize-status').innerHTML = '';
+    document.getElementById('delete-status').innerHTML    = '';
+    document.getElementById('suggested-chips').innerHTML  = '';
     document.getElementById('tags-new-input').value      = '';
     renderCurrentTags();
     document.getElementById('tags-dialog').showModal();
@@ -57,6 +58,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// ── Normalize tags ────────────────────────────────────────────────────────────
+
+async function normalizeTags() {
+    const statusEl = document.getElementById('normalize-status');
+    const btn      = document.getElementById('normalize-btn');
+
+    if (currentTags.length === 0) {
+        statusEl.innerHTML = '<span class="status-error">No tags to normalize.</span>';
+        return;
+    }
+
+    statusEl.innerHTML = '<span class="status-loading">Normalizing…</span>';
+    btn.disabled = true;
+
+    try {
+        const decoded = currentTags.map(t => decodeURIComponent(t));
+        const res = await fetch('/api/normalize-tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags: decoded }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const normalized = await res.json();
+        currentTags = normalized.map(t => encodeURIComponent(t));
+        renderCurrentTags();
+        statusEl.innerHTML = '<span class="status-success">Tags normalized.</span>';
+    } catch (e) {
+        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
 
 // ── Suggest tags ──────────────────────────────────────────────────────────────
 

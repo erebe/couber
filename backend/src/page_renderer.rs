@@ -103,8 +103,15 @@ pub fn render_page(videos: &[Video]) -> Markup {
                     div class="dialog-body" {
                         input type="hidden" id="tags-video-name";
                         div class="tags-section" {
-                            label { "Current tags" }
+                            div class="suggest-header" {
+                                label { "Current tags" }
+                                button #normalize-btn type="button" class="btn btn-secondary btn-sm"
+                                    onclick="normalizeTags()" {
+                                    "Normalize tags"
+                                }
+                            }
                             div #tags-chips class="chips-container" {}
+                            div #normalize-status class="status-msg" {}
                         }
                         div class="tags-section" {
                             label { "Add tag" }

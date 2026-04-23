@@ -171,6 +171,23 @@ struct SuggestTagsQuery {
     name: String,
 }
 
+#[derive(Deserialize)]
+struct NormalizeTagsRequest {
+    tags: Vec<String>,
+}
+
+async fn normalize_tags(
+    State(app): State<Arc<App>>,
+    Json(payload): Json<NormalizeTagsRequest>,
+) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+    let normalized = app
+        .image_tagger
+        .normalize_tags(payload.tags)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(Json(normalized))
+}
+
 async fn suggest_tags(
     State(app): State<Arc<App>>,
     axum::extract::Query(params): axum::extract::Query<SuggestTagsQuery>,
@@ -259,6 +276,7 @@ async fn main() -> eyre::Result<()> {
         .route("/delete-video", post(delete_video))
         .route("/api/tags", get(list_tags))
         .route("/api/suggest-tags", get(suggest_tags))
+        .route("/api/normalize-tags", post(normalize_tags))
         .nest_service("/videos", ServeDir::new(app.videos_path.clone()))
         .layer(TraceLayer::new_for_http())
         .with_state(app);

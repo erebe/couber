@@ -72,6 +72,26 @@ impl ImageTaggerService {
         }
     }
 
+    /// Takes a list of tags and asks the LLM to normalize them:
+    /// translate to English, lowercase, and merge similar/duplicate tags.
+    pub async fn normalize_tags(&self, tags: Vec<String>) -> eyre::Result<Vec<String>> {
+        let tags_json = serde_json::to_string(&tags)?;
+
+        let content = vec![ContentPart::Text {
+            text: format!(
+                "Normalize the following list of tags:\n\
+                 - Translate all tags to English\n\
+                 - Convert all tags to lowercase\n\
+                 - Merge tags that are synonyms or refer to the same concept into a single representative tag\n\
+                 Output ONLY a JSON array of strings, no explanation, no markdown, no code block.\n\
+                 Example: [\"tag1\", \"tag2\", ...]\n\n\
+                 Tags: {tags_json}"
+            ),
+        }];
+
+        self.send_request(content).await
+    }
+
     /// Reads an image from `image_path`, sends it to the OpenRouter vision API,
     /// and returns up to 50 tags/features that best describe the image.
     pub async fn extract_image_tags(&self, image_path: &Path) -> eyre::Result<Vec<String>> {
@@ -80,21 +100,27 @@ impl ImageTaggerService {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
         let data_url = format!("data:{};base64,{}", mime_type, b64);
 
+        let content = vec![
+            ContentPart::Text {
+                text: "Analyze this image and return exactly 50 tags or features that best describe it. \
+                       Output ONLY a JSON array of strings, no explanation, no markdown, no code block. \
+                       Example: [\"tag1\", \"tag2\", ...]".to_string(),
+            },
+            ContentPart::ImageUrl {
+                image_url: ImageUrl { url: data_url },
+            },
+        ];
+
+        self.send_request(content).await
+    }
+
+    async fn send_request(&self, content: Vec<ContentPart>) -> eyre::Result<Vec<String>> {
         let request = ChatRequest {
             model: self.model.clone(),
             stream: false,
             messages: vec![Message {
                 role: "user".to_string(),
-                content: vec![
-                    ContentPart::Text {
-                        text: "Analyze this image and return exactly 50 tags or features that best describe it. \
-                               Output ONLY a JSON array of strings, no explanation, no markdown, no code block. \
-                               Example: [\"tag1\", \"tag2\", ...]".to_string(),
-                    },
-                    ContentPart::ImageUrl {
-                        image_url: ImageUrl { url: data_url },
-                    },
-                ],
+                content,
             }],
         };
 
@@ -109,15 +135,12 @@ impl ImageTaggerService {
             .json::<ChatResponse>()
             .await?;
 
-        let tags = response
+        response
             .choices
             .into_iter()
             .next()
-            .ok_or_else(|| eyre::eyre!("No choices returned from API"))?
-            .message
-            .content;
-
-        Ok(tags)
+            .ok_or_else(|| eyre::eyre!("No choices returned from API"))
+            .map(|c| c.message.content)
     }
 }
 
