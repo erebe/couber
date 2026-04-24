@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -ex
 video_name=${1}
 video_path="${video_name}/${video_name}"
 video_url="https://coub.com/view/${video_name}"
