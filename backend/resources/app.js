@@ -65,7 +65,7 @@ async function normalizeTags() {
     const btn      = document.getElementById('normalize-btn');
 
     if (currentTags.length === 0) {
-        statusEl.innerHTML = '<span class="status-error">No tags to normalize.</span>';
+        statusEl.innerHTML = '<pre class="status-error">No tags to normalize.</pre>';
         return;
     }
 
@@ -85,7 +85,7 @@ async function normalizeTags() {
         renderCurrentTags();
         statusEl.innerHTML = '<span class="status-success">Tags normalized.</span>';
     } catch (e) {
-        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+        statusEl.innerHTML = `<pre class="status-error">Error: ${e.message}</pre>`;
     } finally {
         btn.disabled = false;
     }
@@ -118,12 +118,12 @@ async function suggestTags() {
             container.appendChild(chip);
         });
         if (tags.length === 0) {
-            statusEl.innerHTML = '<span class="status-error">No suggestions returned.</span>';
+            statusEl.innerHTML = '<pre class="status-error">No suggestions returned.</pre>';
         } else {
             selectAll.hidden = false;
         }
     } catch (e) {
-        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+        statusEl.innerHTML = `<pre class="status-error">Error: ${e.message}</pre>`;
     } finally {
         btn.disabled = false;
     }
@@ -169,7 +169,7 @@ async function saveTags() {
             if (tagsEl) tagsEl.textContent = tagsDecoded;
         }
     } catch (e) {
-        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+        statusEl.innerHTML = `<pre class="status-error">Error: ${e.message}</pre>`;
     }
 }
 
@@ -196,7 +196,7 @@ async function deleteVideo() {
             setTimeout(() => document.getElementById('tags-dialog').close(), 800);
         }
     } catch (e) {
-        statusEl.innerHTML = `<span class="status-error">Error: ${e.message}</span>`;
+        statusEl.innerHTML = `<pre class="status-error">Error: ${e.message}</pre>`;
     }
 }
 

@@ -90,7 +90,7 @@ struct AddVideoForm {
 async fn insert_video(State(app): State<Arc<App>>, Form(payload): Form<AddVideoForm>) -> Markup {
     let url = payload.url.trim().to_string();
     if url.is_empty() {
-        return html! { span class="status-error" { "Please enter a URL." } };
+        return html! { pre class="status-error" { "Please enter a URL." } };
     }
 
     let fetch_result = {
@@ -110,8 +110,8 @@ async fn insert_video(State(app): State<Arc<App>>, Form(payload): Form<AddVideoF
 
     let mut video = match fetch_result {
         Ok(Ok(v)) => v,
-        Ok(Err(e)) => return html! { span class="status-error" { "Error: " (e) } },
-        Err(e) => return html! { span class="status-error" { "Error: " (e) } },
+        Ok(Err(e)) => return html! { pre class="status-error" { "Error: " (e) } },
+        Err(e) => return html! { pre class="status-error" { "Error: " (e) } },
     };
 
     let thumbnail_path = app
@@ -123,7 +123,7 @@ async fn insert_video(State(app): State<Arc<App>>, Form(payload): Form<AddVideoF
     video.tags.extend(tags.unwrap_or_default().into_iter());
     match database::insert_video(&app.db, &video).await {
         Ok(_) => html! { span class="status-success" { "Video added successfully!" } },
-        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => html! { pre class="status-error" { "Error: " (e) } },
     }
 }
 
@@ -146,7 +146,7 @@ async fn update_tags_form(
 
     match database::set_tags(&app.db, &payload.name, &tags).await {
         Ok(_) => html! { span class="status-success" { "Tags saved!" } },
-        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => html! { pre class="status-error" { "Error: " (e) } },
     }
 }
 
@@ -157,12 +157,12 @@ struct DeleteVideoForm {
 
 async fn delete_video(State(app): State<Arc<App>>, Form(payload): Form<DeleteVideoForm>) -> Markup {
     if let Err(e) = app.video_store.delete(&payload.name) {
-        return html! { span class="status-error" { "Error: " (e) } };
+        return html! { pre class="status-error" { "Error: " (e) } };
     };
 
     match database::delete_video(&app.db, &payload.name).await {
         Ok(_) => html! { span class="status-success" { "Video deleted!" } },
-        Err(e) => html! { span class="status-error" { "Error: " (e) } },
+        Err(e) => html! { pre class="status-error" { "Error: " (e) } },
     }
 }
 

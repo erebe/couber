@@ -18,7 +18,17 @@ impl VideoFetcher {
         let mut cmd = Command::new("./coub.sh");
         cmd.args([coub_name]).current_dir(&self.scripts_path);
         info!("Coub fetched: {:?}", cmd);
-        cmd.output()?;
+        let output = cmd.output()?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eyre::bail!(
+                "coub.sh failed ({})\nstdout: {}\nstderr: {}",
+                output.status,
+                stdout,
+                stderr
+            );
+        }
         let video_file = File::open(
             self.scripts_path
                 .join(coub_name)
@@ -46,7 +56,17 @@ impl VideoFetcher {
             .arg(&video_name)
             .current_dir(&self.scripts_path);
         info!("Video fetched: {:?}", cmd);
-        cmd.output()?;
+        let output = cmd.output()?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eyre::bail!(
+                "generic_vids.sh failed ({})\nstdout: {}\nstderr: {}",
+                output.status,
+                stdout,
+                stderr
+            );
+        }
         let video_file = File::open(
             self.scripts_path
                 .join(&video_name)
