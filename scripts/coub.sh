@@ -37,5 +37,3 @@ cat <<EOF > ${video_path}.js
   "creation_timestamp": $(date '+%s')
 }
 EOF
-
-cleanup 0 ''
